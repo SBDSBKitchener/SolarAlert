@@ -5,8 +5,8 @@
 [feed]
 title = "Solar & Geomagnetic Alerts"
 description = "Significant solar flares, filament eruptions, geomagnetic, proton and solar wind alerts."
-link = "https://YOUR-USER.github.io/YOUR-REPO/"            # human-facing page (GitHub Pages URL)
-self_url = "https://YOUR-USER.github.io/YOUR-REPO/feed.xml"  # public URL of the feed itself
+link = "https://SGDSBKitchener.github.io/SolarAlert/"            # human-facing page (GitHub Pages URL)
+self_url = "https://SGDSBKitchener.github.io/SolarAlert/feed.xml"  # public URL of the feed itself
 output_path = "site/feed.xml"                              # published directory (GitHub Pages deploys site/)
 max_items = 100
 max_age_days = 14
