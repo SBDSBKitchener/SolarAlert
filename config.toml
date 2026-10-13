@@ -5,8 +5,8 @@
 [feed]
 title = "Solar & Geomagnetic Alerts"
 description = "Significant solar flares, filament eruptions, geomagnetic, proton and solar wind alerts."
-link = "https://SGDSBKitchener.github.io/SolarAlert/"            # human-facing page (GitHub Pages URL)
-self_url = "https://SGDSBKitchener.github.io/SolarAlert/feed.xml"  # public URL of the feed itself
+link = "https://SBDSBKitchener.github.io/SolarAlert/"            # human-facing page (GitHub Pages URL)
+self_url = "https://SBDSBKitchener.github.io/SolarAlert/feed.xml"  # public URL of the feed itself
 output_path = "site/feed.xml"                              # published directory (GitHub Pages deploys site/)
 max_items = 100
 max_age_days = 14
@@ -14,7 +14,7 @@ ttl_minutes = 5
 
 [runtime]
 database = "state/solar_alerts.db"
-user_agent = "solar-alerts-rss/1.0 (contact: admin@example.org)"   # please set a real contact
+user_agent = "solar-alerts-rss/1.0 (+https://github.com/SBDSBKitchener/SolarAlert)"   # public contact sent to NOAA/HEK
 http_timeout_seconds = 20
 retention_days = 90          # how long alerts stay in the database
 

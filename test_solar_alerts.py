@@ -1,0 +1,255 @@
+"""Offline tests: python3 -m unittest -v   (no network needed)"""
+import os
+import tempfile
+import unittest
+import xml.etree.ElementTree as ET
+from datetime import datetime, timedelta, timezone
+
+import solar_alerts as sa
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+NOW = datetime(2026, 10, 13, 12, 0, tzinfo=timezone.utc)
+
+
+def ts(minutes_ago, sep=" "):
+    return (NOW - timedelta(minutes=minutes_ago)).strftime(f"%Y-%m-%d{sep}%H:%M:%S")
+
+
+class Fake:
+    def __init__(self, cfg):
+        self.cfg, self.data = cfg, {}
+
+    def json(self, url):
+        for k, v in self.data.items():
+            if url.startswith(k):
+                if isinstance(v, Exception):
+                    raise v
+                return v
+        raise KeyError(url)
+
+    text = json
+
+
+class Base(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.cfg = sa.load_config(os.path.join(HERE, "config.toml"))
+        self.cfg["feed"]["output_path"] = os.path.join(self.tmp.name, "site", "feed.xml")   # dirs created on demand
+        self.store = sa.Store(os.path.join(self.tmp.name, "state", "t.db"))
+        c = self.cfg
+        self.f = Fake(c)
+        # every source empty by default
+        self.f.data = {
+            c["hek"]["url"]: {"result": []},
+            c["geomagnetic"]["coronal_hole"]["url"]: ":Issued: 2026 Oct 13 0030 UTC\nNothing here.",
+            c["geomagnetic"]["storm_forecast"]["alerts_url"]: [],
+            c["geomagnetic"]["kp"]["url"]: [],
+            c["protons"]["ge10mev"]["url"]: [],
+            c["solar_wind"]["plasma_url"]: [["time_tag", "density", "speed", "temperature"]],
+            c["solar_wind"]["mag_url"]: [["time_tag", "bx_gsm", "by_gsm", "bz_gsm", "lon_gsm", "lat_gsm", "bt"]],
+        }
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def cycle(self, now=NOW):
+        return sa.run_cycle(self.cfg, self.f, self.store, now)
+
+    def titles(self, new):
+        return [a.title for a in new]
+
+
+class Config(unittest.TestCase):
+    def test_shipped_config_valid(self):
+        sa.load_config(os.path.join(HERE, "config.toml"))
+
+    def test_bad_values_rejected(self):
+        cfg = sa.load_config(os.path.join(HERE, "config.toml"))
+        cfg["flares"]["min_class"] = "Q9"
+        cfg["solar_wind"]["bz"]["direction"] = "sideways"
+        del cfg["geomagnetic"]["kp"]["min_kp"]
+        with self.assertRaises(sa.ConfigError) as cm:
+            sa.validate_config(cfg)
+        msg = str(cm.exception)
+        self.assertIn("flares.min_class", msg)
+        self.assertIn("solar_wind.bz.direction", msg)
+        self.assertIn("geomagnetic.kp.min_kp", msg)
+
+    def test_goes_class(self):
+        self.assertGreater(sa.goes_flux("X1.0"), sa.goes_flux("M9.9"))
+        self.assertAlmostEqual(sa.goes_flux("m5.0"), 5e-5)
+        self.assertIsNone(sa.goes_flux("nonsense"))
+
+
+class SolarEvents(Base):
+    def ev(self, cls, lon, lat=10, minutes_ago=30, frm="SWPC", kb="a", typ="FL"):
+        e = {"event_type": typ, "event_starttime": ts(minutes_ago + 10, "T"), "event_peaktime": ts(minutes_ago, "T"),
+             "hgs_x": lon, "hgs_y": lat, "frm_name": frm, "kb_archivid": kb}
+        if cls:
+            e["fl_goescls"] = cls
+        return e
+
+    def test_flare_rules(self):
+        self.f.data[self.cfg["hek"]["url"]] = {"result": [
+            self.ev("M7.1", 20, kb="1"),                    # full  -> alert
+            self.ev("X1.0", -75, kb="2", minutes_ago=90),   # partial -> alert
+            self.ev("X2.0", 120, kb="3", minutes_ago=120),  # far side -> ignore
+            self.ev("M2.0", 10, kb="4", minutes_ago=150),   # too weak -> ignore
+            self.ev("M9.0", None, kb="5", minutes_ago=200), # unknown location -> ignore
+            self.ev("M7.1", 21, kb="6", frm="Other"),       # duplicate of #1 from another FRM
+        ]}
+        new = self.cycle()
+        self.assertEqual(len(new), 2, self.titles(new))
+        self.assertTrue(any("M7.1" in t and "Earth-facing" in t for t in self.titles(new)))
+        self.assertTrue(any("X1.0" in t and "partially" in t for t in self.titles(new)))
+        self.assertEqual(self.cycle(), [])                  # nothing repeated next poll
+
+    def test_threshold_is_configurable(self):
+        self.f.data[self.cfg["hek"]["url"]] = {"result": [self.ev("M2.0", 10, kb="4")]}
+        self.assertEqual(self.cycle(), [])
+        self.cfg["flares"]["min_class"] = "M1.0"
+        self.assertEqual(len(self.cycle()), 1)
+
+    def test_unknown_location_alert_mode(self):
+        self.cfg["flares"]["unknown_location"] = "alert"
+        self.f.data[self.cfg["hek"]["url"]] = {"result": [self.ev("M9.0", None, kb="5")]}
+        self.assertEqual(len(self.cycle()), 1)
+
+    def test_filament(self):
+        self.f.data[self.cfg["hek"]["url"]] = {"result": [
+            self.ev(None, 15, kb="f1", typ="FE"), self.ev(None, 130, kb="f2", typ="FE", minutes_ago=300)]}
+        new = self.cycle()
+        self.assertEqual(len(new), 1)
+        self.assertIn("Filament eruption", new[0].title)
+
+
+class Geomagnetic(Base):
+    def test_kp(self):
+        self.f.data[self.cfg["geomagnetic"]["kp"]["url"]] = [
+            {"time_tag": ts(60, "T"), "Kp": 7.67}, {"time_tag": ts(240, "T"), "Kp": 6.67}]
+        new = self.cycle()
+        self.assertEqual(len(new), 1)
+        self.assertIn("7.67", new[0].title)
+        self.assertIn("G4", new[0].title)
+
+    def test_kp_list_format(self):
+        self.f.data[self.cfg["geomagnetic"]["kp"]["url"]] = [
+            ["time_tag", "Kp", "a_running", "station_count"], [ts(60, "T"), "8.00", "207", "8"]]
+        self.assertEqual(len(self.cycle()), 1)
+
+    def test_storm_forecast(self):
+        url = self.cfg["geomagnetic"]["storm_forecast"]["alerts_url"]
+        self.f.data[url] = [
+            {"issue_datetime": ts(60), "message": "WATCH: Geomagnetic Storm Category G3 Predicted"},
+            {"issue_datetime": ts(30), "message": "Space Weather Message\nWATCH: Geomagnetic Storm Category G4 Predicted\nNOAA"},
+            {"issue_datetime": ts(5000), "message": "WATCH: Geomagnetic Storm Category G5 Predicted"}]   # too old
+        new = self.cycle()
+        self.assertEqual(self.titles(new), ["G4 geomagnetic storm forecast"])
+
+    def test_storm_forecast_k_warning(self):
+        url = self.cfg["geomagnetic"]["storm_forecast"]["alerts_url"]
+        self.f.data[url] = [{"issue_datetime": ts(30), "message": "WARNING: Geomagnetic K-index of 8 expected"}]
+        self.assertEqual(self.titles(self.cycle()), ["G4 geomagnetic storm forecast"])
+
+    def test_coronal_hole(self):
+        url = self.cfg["geomagnetic"]["coronal_hole"]["url"]
+        self.f.data[url] = (":Issued: 2026 Oct 13 0030 UTC\n"
+                            "A recurrent coronal hole high speed stream (CH HSS) is expected to\n"
+                            "influence Earth on 14-15 Oct. No solar flares are expected.")
+        new = self.cycle()
+        self.assertEqual(len(new), 1)
+        self.assertIn("Coronal hole", new[0].title)
+
+    def test_coronal_hole_negative_ignored(self):
+        url = self.cfg["geomagnetic"]["coronal_hole"]["url"]
+        self.f.data[url] = ":Issued: 2026 Oct 13 0030 UTC\nNo coronal hole influence is expected."
+        self.assertEqual(self.cycle(), [])
+
+
+class ProtonsAndWind(Base):
+    def test_protons(self):
+        url = self.cfg["protons"]["ge10mev"]["url"]
+        self.f.data[url] = [
+            {"time_tag": ts(5, "T"), "satellite": 19, "flux": 150.0, "energy": ">=10 MeV"},
+            {"time_tag": ts(5, "T"), "satellite": 19, "flux": 0.4, "energy": ">=100 MeV"},
+            {"time_tag": ts(4, "T"), "satellite": 19, "flux": 2.5, "energy": ">=100 MeV"}]
+        new = self.cycle()
+        self.assertEqual(len(new), 2)
+        self.assertEqual(self.cycle(), [])
+
+    def test_protons_below_threshold(self):
+        url = self.cfg["protons"]["ge10mev"]["url"]
+        self.f.data[url] = [{"time_tag": ts(5, "T"), "flux": 100.0, "energy": ">=10 MeV"}]  # equal != exceeds
+        self.assertEqual(self.cycle(), [])
+
+    def wind(self, speed, dens, bt, bz, minutes_ago=5):
+        c = self.cfg["solar_wind"]
+        self.f.data[c["plasma_url"]] = [["time_tag", "density", "speed", "temperature"],
+                                        [ts(minutes_ago), str(dens), str(speed), "100000"]]
+        self.f.data[c["mag_url"]] = [["time_tag", "bx_gsm", "by_gsm", "bz_gsm", "lon_gsm", "lat_gsm", "bt"],
+                                     [ts(minutes_ago), "1", "2", str(bz), "0", "0", str(bt)]]
+
+    def test_wind_all_rules(self):
+        self.wind(speed=850, dens=12, bt=45, bz=-42)
+        self.assertEqual(len(self.cycle()), 4)
+
+    def test_bz_direction(self):
+        self.wind(speed=400, dens=3, bt=20, bz=-39)          # not past -40
+        self.assertEqual(self.cycle(), [])
+        self.wind(speed=400, dens=3, bt=20, bz=45)           # strongly northward must NOT alert
+        self.assertEqual(self.cycle(), [])
+        self.wind(speed=400, dens=3, bt=20, bz=-41)
+        new = self.cycle()
+        self.assertEqual(len(new), 1)
+        self.assertIn("Bz", new[0].title)
+
+    def test_hysteresis_and_cooldown(self):
+        self.wind(850, 3, 20, 0)
+        self.assertEqual(len(self.cycle(NOW)), 1)
+        self.wind(860, 3, 20, 0, minutes_ago=0)
+        self.assertEqual(self.cycle(NOW + timedelta(minutes=5)), [])      # same episode
+        self.f.data[self.cfg["solar_wind"]["plasma_url"]] = [["time_tag", "density", "speed", "temperature"]] \
+            + [[(NOW + timedelta(minutes=45)).strftime("%Y-%m-%d %H:%M:%S"), "3", "500", "1"]]
+        self.assertEqual(self.cycle(NOW + timedelta(minutes=45)), [])      # clears
+        self.f.data[self.cfg["solar_wind"]["plasma_url"]] = [["time_tag", "density", "speed", "temperature"]] \
+            + [[(NOW + timedelta(minutes=50)).strftime("%Y-%m-%d %H:%M:%S"), "3", "900", "1"]]
+        self.assertEqual(self.cycle(NOW + timedelta(minutes=50)), [])      # re-breach inside 60 min cooldown
+        self.f.data[self.cfg["solar_wind"]["plasma_url"]] = [["time_tag", "density", "speed", "temperature"]] \
+            + [[(NOW + timedelta(minutes=70)).strftime("%Y-%m-%d %H:%M:%S"), "3", "500", "1"]]
+        self.cycle(NOW + timedelta(minutes=70))
+        self.f.data[self.cfg["solar_wind"]["plasma_url"]] = [["time_tag", "density", "speed", "temperature"]] \
+            + [[(NOW + timedelta(minutes=75)).strftime("%Y-%m-%d %H:%M:%S"), "3", "900", "1"]]
+        self.assertEqual(len(self.cycle(NOW + timedelta(minutes=75))), 1)  # cooldown over
+
+    def test_disabled_rule(self):
+        self.cfg["solar_wind"]["speed"]["enabled"] = False
+        self.wind(speed=900, dens=3, bt=20, bz=0)
+        self.assertEqual(self.cycle(), [])
+
+    def test_failed_source_does_not_block_others(self):
+        self.wind(speed=900, dens=3, bt=45, bz=0)
+        self.f.data[self.cfg["solar_wind"]["plasma_url"]] = OSError("down")
+        new = self.cycle()
+        self.assertEqual(len(new), 1)
+        self.assertIn("Bt", new[0].title)
+
+
+class Feed(Base):
+    def test_feed_is_valid_rss(self):
+        self.f.data[self.cfg["geomagnetic"]["kp"]["url"]] = [{"time_tag": ts(60, "T"), "Kp": 8.0}]
+        self.cycle()
+        root = ET.parse(self.cfg["feed"]["output_path"]).getroot()
+        self.assertEqual(root.tag, "rss")
+        items = root.findall("./channel/item")
+        self.assertEqual(len(items), 1)
+        for tag in ("title", "link", "guid", "pubDate", "description", "category"):
+            self.assertIsNotNone(items[0].find(tag), tag)
+
+    def test_empty_feed_valid(self):
+        self.cycle()
+        root = ET.parse(self.cfg["feed"]["output_path"]).getroot()
+        self.assertEqual(root.findall("./channel/item"), [])
+
+
+if __name__ == "__main__":
+    unittest.main()
