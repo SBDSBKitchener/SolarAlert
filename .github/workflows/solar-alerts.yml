@@ -13,7 +13,9 @@ on:
     branches: [main]
     paths:
       - config.toml
+      - test_config.toml
       - solar_alerts.py
+      - test_solar_alerts.py
       - site_static/**
       - .github/workflows/solar-alerts.yml
 
@@ -55,11 +57,13 @@ jobs:
             echo "No state branch yet - first run."
           fi
 
-      - name: Run tests (only when code or config changed)
+      - name: Validate config, then run tests (only when code or config changed)
         if: github.event_name == 'push'
         run: |
-          python -m unittest -v
+          # A mistyped value (e.g. text where a number belongs) stops here with a clear message,
+          # and nothing is published. Any valid threshold passes: tests use test_config.toml.
           python solar_alerts.py --check-config
+          python -m unittest -v
 
       - name: Check for new alerts
         run: python solar_alerts.py --config config.toml -v

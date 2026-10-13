@@ -33,7 +33,7 @@ class Fake:
 class Base(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
-        self.cfg = sa.load_config(os.path.join(HERE, "config.toml"))
+        self.cfg = sa.load_config(os.path.join(HERE, "test_config.toml"))   # pinned, independent of admin edits
         self.cfg["feed"]["output_path"] = os.path.join(self.tmp.name, "site", "feed.xml")   # dirs created on demand
         self.store = sa.Store(os.path.join(self.tmp.name, "state", "t.db"))
         c = self.cfg
@@ -64,7 +64,7 @@ class Config(unittest.TestCase):
         sa.load_config(os.path.join(HERE, "config.toml"))
 
     def test_bad_values_rejected(self):
-        cfg = sa.load_config(os.path.join(HERE, "config.toml"))
+        cfg = sa.load_config(os.path.join(HERE, "test_config.toml"))
         cfg["flares"]["min_class"] = "Q9"
         cfg["solar_wind"]["bz"]["direction"] = "sideways"
         del cfg["geomagnetic"]["kp"]["min_kp"]

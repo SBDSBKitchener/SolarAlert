@@ -1,0 +1,130 @@
+# Pinned thresholds used ONLY by test_solar_alerts.py. Do not edit; change config.toml instead.
+# Solar & Geomagnetic Alerts RSS - configuration
+# Re-read on every polling cycle: edit, save, and the next run uses the new values.
+# Check your edits with:  python3 solar_alerts.py --check-config
+
+[feed]
+title = "Solar & Geomagnetic Alerts"
+description = "Significant solar flares, filament eruptions, geomagnetic, proton and solar wind alerts."
+link = "https://SBDSBKitchener.github.io/SolarAlert/"            # human-facing page (GitHub Pages URL)
+self_url = "https://SBDSBKitchener.github.io/SolarAlert/feed.xml"  # public URL of the feed itself
+output_path = "site/feed.xml"                              # published directory (GitHub Pages deploys site/)
+max_items = 100
+max_age_days = 14
+ttl_minutes = 5
+
+[runtime]
+database = "state/solar_alerts.db"
+user_agent = "solar-alerts-rss/1.0 (+https://github.com/SBDSBKitchener/SolarAlert)"   # public contact sent to NOAA/HEK
+http_timeout_seconds = 20
+retention_days = 90          # how long alerts stay in the database
+
+[hek]
+url = "https://www.lmsal.com/hek/her"
+
+# ---------------------------------------------------------------- SOLAR EVENTS
+# "Earth-facing" is judged from the event's Stonyhurst heliographic longitude
+# (0 = disk centre, +/-90 = limb).
+#   |lon| <= full_facing_max_longitude     -> "Earth-facing"
+#   |lon| <= partial_facing_max_longitude  -> "partially Earth-facing (near limb)"
+# unknown_location: "ignore" or "alert" when HEK has no position for the event yet.
+
+[flares]
+enabled = true
+min_class = "M5.0"                    # alert on flares at or above this GOES class
+lookback_hours = 6
+full_facing_max_longitude = 60
+partial_facing_max_longitude = 90
+unknown_location = "ignore"
+link = "https://www.swpc.noaa.gov/products/goes-x-ray-flux"
+
+[filaments]
+enabled = true
+lookback_hours = 12
+full_facing_max_longitude = 60
+partial_facing_max_longitude = 90
+unknown_location = "ignore"
+link = "https://sdo.gsfc.nasa.gov/data/"
+
+# ---------------------------------------------------------------- GEOMAGNETIC
+
+[geomagnetic.coronal_hole]
+enabled = true
+url = "https://services.swpc.noaa.gov/text/discussion.txt"
+# A sentence of the SWPC forecast discussion triggers an alert if it matches
+# include_regex and does not match exclude_regex (case-insensitive).
+include_regex = "(coronal hole|CH HSS|high speed stream).*(expect|forecast|anticipat|arriv|impact|influence|enhanc)"
+exclude_regex = "\\b(no|not|neither|nor)\\b.{0,40}(coronal hole|CH HSS|high speed stream)|(coronal hole|CH HSS|high speed stream).{0,60}\\b(not expected|no longer)\\b"
+cooldown_minutes = 720
+
+[geomagnetic.storm_forecast]
+enabled = true
+alerts_url = "https://services.swpc.noaa.gov/products/alerts.json"
+min_g_level = 4                       # G4 or greater (WATCH / WARNING products)
+max_age_hours = 36
+cooldown_minutes = 360
+
+[geomagnetic.kp]
+enabled = true
+url = "https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json"
+min_kp = 7.5                          # alert when Kp >= this
+lookback_hours = 6
+
+# ---------------------------------------------------------------- PROTONS
+# direction "above": alert when flux > threshold (pfu)
+# Once alerted, no further alert for the same channel until the flux has
+# dropped back below the threshold AND cooldown_minutes has passed.
+
+[protons.ge10mev]
+enabled = true
+url = "https://services.swpc.noaa.gov/json/goes/primary/integral-protons-1-day.json"
+energy = ">=10 MeV"
+threshold = 100.0
+direction = "above"
+lookback_minutes = 30
+cooldown_minutes = 360
+
+[protons.ge100mev]
+enabled = true
+url = "https://services.swpc.noaa.gov/json/goes/primary/integral-protons-1-day.json"
+energy = ">=100 MeV"
+threshold = 1.0
+direction = "above"
+lookback_minutes = 30
+cooldown_minutes = 360
+
+# ---------------------------------------------------------------- SOLAR WIND
+# direction "above": value > threshold.  direction "below": value < threshold
+# (use "below" for Bz, so -40 means "more negative than -40 nT").
+
+[solar_wind]
+plasma_url = "https://services.swpc.noaa.gov/products/solar-wind/plasma-5-minute.json"
+mag_url = "https://services.swpc.noaa.gov/products/solar-wind/mag-5-minute.json"
+
+[solar_wind.speed]
+enabled = true
+threshold = 800.0                     # km/s
+direction = "above"
+lookback_minutes = 30
+cooldown_minutes = 60
+
+[solar_wind.density]
+enabled = true
+threshold = 10.0                      # particles / cm^3
+direction = "above"
+lookback_minutes = 30
+cooldown_minutes = 60
+
+[solar_wind.bt]
+enabled = true
+threshold = 40.0                      # nT, total field
+direction = "above"
+lookback_minutes = 30
+cooldown_minutes = 60
+
+[solar_wind.bz]
+enabled = true
+threshold = -40.0                     # nT, GSM Bz
+direction = "below"
+lookback_minutes = 30
+cooldown_minutes = 60
