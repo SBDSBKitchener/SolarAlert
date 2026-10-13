@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Solar &amp; Geomagnetic Alerts</title>
+<link rel="alternate" type="application/rss+xml" title="Solar &amp; Geomagnetic Alerts" href="feed.xml">
+<style>
+  :root { --bg:#fff; --fg:#1b1f24; --muted:#5b6570; --accent:#b45309; --line:#e3e6ea; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#111418; --fg:#e8eaed; --muted:#9aa3ad; --accent:#f59e0b; --line:#2a3038; }
+  }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.55 system-ui, sans-serif; }
+  main { max-width:42rem; margin:0 auto; padding:2rem 16px 4rem; }
+  h1 { font-size:1.6rem; margin:0 0 .25rem; }
+  h2 { font-size:1.1rem; margin:2rem 0 .5rem; }
+  p.lead { color:var(--muted); margin-top:0; }
+  a { color:var(--accent); }
+  .sub { display:inline-block; margin:1rem 0; padding:.6rem 1rem; border:1px solid var(--accent);
+         border-radius:6px; font-weight:600; text-decoration:none; }
+  ul { padding-left:1.2rem; } li { margin:.25rem 0; }
+  small { color:var(--muted); display:block; margin-top:2.5rem; border-top:1px solid var(--line); padding-top:1rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Solar &amp; Geomagnetic Alerts</h1>
+  <p class="lead">An RSS feed that posts only when something significant happens on the Sun or in near-Earth space.</p>
+  <a class="sub" href="feed.xml">Subscribe via RSS</a>
+  <p>Copy the feed address into your RSS reader, or use the button above.</p>
+
+  <h2>What triggers an alert</h2>
+  <ul>
+    <li>Earth-facing (full or partial) solar flares above the configured class, and filament eruptions</li>
+    <li>Coronal hole streams forecast to reach Earth; forecast G4+ storms; observed Kp at or above the threshold</li>
+    <li>Solar proton levels (&ge;10 MeV and &ge;100 MeV) above their thresholds</li>
+    <li>Solar wind speed, density, total field (Bt) and southward Bz beyond their thresholds</li>
+  </ul>
+
+  <h2>Data sources</h2>
+  <p>NOAA Space Weather Prediction Center and the Heliophysics Event Knowledgebase.</p>
+
+  <small>Independent project, not affiliated with or endorsed by NOAA. Alerts are automated and may be
+  delayed or wrong. Do not use for safety-critical decisions; consult official
+  <a href="https://www.swpc.noaa.gov/">SWPC</a> products.</small>
+</main>
+</body>
+</html>
