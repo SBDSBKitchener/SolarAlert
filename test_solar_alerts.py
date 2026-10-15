@@ -252,12 +252,13 @@ class ProtonsAndWind(Base):
 
 
 class Sunspots(Base):
-    """Fixtures mirror NOAA's real solar_regions.json records for AR4551 (S15E07, BGD on 14 Oct 2026)."""
+    """Fixtures mirror NOAA's solar_regions.json records (AR4551: S15E07, BGD, X-flare chance 10% on 14 Oct 2026)."""
 
     def rec(self, region=4551, days_ago=1, loc="S15E07", mag="BGD", lon=None, base=NOW, **kw):
         d = (base - timedelta(days=days_ago)).strftime("%Y-%m-%d")
         r = {"observed_date": d, "region": region, "location": loc, "mag_class": mag, "spot_class": "Eki",
-             "area": 500, "number_spots": 23, "m_flare_probability": 25, "x_flare_probability": 10}
+             "area": 500, "number_spots": 23, "m_flare_probability": 25, "x_flare_probability": 5,
+             "m_xray_events": 0, "x_xray_events": 0}
         if lon is not None:
             r["longitude"] = lon
         r.update(kw)
@@ -266,67 +267,140 @@ class Sunspots(Base):
     def feed(self, *records):
         self.f.data[self.cfg["sunspots"]["url"]] = list(records)
 
-    def test_ar4551_alerts(self):
-        # real history: B, BG, B, BG on earlier days, BGD on the latest day
-        self.feed(self.rec(days_ago=5, loc="S13E71", mag="B"), self.rec(days_ago=4, loc="S14E61", mag="B"),
-                  self.rec(days_ago=3, loc="S15E47", mag="BG"), self.rec(days_ago=2, loc="S15E21", mag="BG"),
-                  self.rec(days_ago=1))
-        new = self.cycle()
+    def flagged(self, *records, now=NOW):
+        self.feed(*records)
+        return self.cycle(now)
+
+    # ---- the real AR4551 history ------------------------------------------------------------------
+    AR4551 = [  # (observed, location, class, area, spots, X-flare %, M-flare %)  from NOAA, 9-15 Oct 2026
+        ("2026-10-09", "S13E71", "B", 170, 2, None, None), ("2026-10-10", "S14E61", "B", 360, 12, None, None),
+        ("2026-10-11", "S15E47", "BG", 400, 14, None, None), ("2026-10-12", "S15E34", "B", 400, 13, None, None),
+        ("2026-10-13", "S15E21", "BG", 480, 9, None, None), ("2026-10-14", "S15E07", "BGD", 500, 23, 10, 25),
+        ("2026-10-15", "S15W05", "BGD", 620, 32, 10, 25)]
+
+    def test_ar4551_replay(self):
+        records, first = [], None
+        for obs, loc, cls, area, spots, xp, mp in self.AR4551:
+            records.append({"observed_date": obs, "region": 4551, "location": loc, "mag_class": cls, "area": area,
+                            "number_spots": spots, "x_flare_probability": xp, "m_flare_probability": mp,
+                            "m_xray_events": 0, "x_xray_events": 0, "spot_class": "Eki"})
+            day = datetime.strptime(obs, "%Y-%m-%d").replace(hour=12, tzinfo=timezone.utc)
+            new = self.flagged(*records, now=day)
+            if new and first is None:
+                first = (obs, new[0])
+            elif new:
+                self.fail(f"unexpected second alert on {obs}: {new[0].title}")
+        self.assertIsNotNone(first)
+        obs, alert = first
+        self.assertEqual(obs, "2026-10-14")          # E71/E61 are outside the 60 deg cone; 11-13 Oct met nothing
+        for part in ("AR4551", "beta-gamma-delta", "rapid growth", "X-flare chance 10%", "Earth-facing", "S15E07"):
+            self.assertIn(part, alert.title)
+
+    # ---- individual attributes: each can flag a region on its own --------------------------------
+    def test_class_alone_flags_without_any_flare_history(self):
+        new = self.flagged(self.rec())
         self.assertEqual(len(new), 1, self.titles(new))
-        t = new[0].title
-        for part in ("AR4551", "beta-gamma-delta", "S15E07", "Earth-facing"):
-            self.assertIn(part, t)
-        self.assertIn("M-class 25%", new[0].description)
+        self.assertIn("beta-gamma-delta", new[0].title)
         self.assertEqual(self.cycle(), [])                      # not repeated on the next poll
 
-    def test_older_bgd_record_superseded(self):
-        self.feed(self.rec(days_ago=2, mag="BGD"), self.rec(days_ago=1, mag="BG"))   # no longer BGD
-        self.assertEqual(self.cycle(), [])
+    def test_x_probability_threshold_and_m_probability_ignored(self):
+        self.assertEqual(len(self.flagged(self.rec(mag="B", x_flare_probability=10))), 1)
+        self.assertEqual(self.flagged(self.rec(region=2, mag="B", x_flare_probability=9, m_flare_probability=95)), [])
+        self.assertEqual(self.flagged(self.rec(region=3, mag="B", x_flare_probability=None, m_flare_probability=99)), [])
 
-    def test_other_classes_ignored_by_default_but_configurable(self):
-        self.feed(self.rec(mag="BD", region=1), self.rec(mag="GD", region=2), self.rec(mag="BG", region=3))
-        self.assertEqual(self.cycle(), [])
-        self.cfg["sunspots"]["dangerous_classes"] = ["bgd", "GD", "BD"]       # case-insensitive
+    def test_flare_history_flags_but_absence_does_not_disqualify(self):
+        self.assertEqual(len(self.flagged(self.rec(mag="B", m_xray_events=1))), 1)
+        self.assertEqual(len(self.flagged(self.rec(region=2, mag="B", x_xray_events=1))), 1)
+        self.assertEqual(self.flagged(self.rec(region=3, mag="B")), [])           # nothing met: not flagged
+        self.assertEqual(len(self.flagged(self.rec(region=4, mag="BGD", m_xray_events=0))), 1)   # BGD, no flares
+
+    def test_rapid_growth(self):
+        def grow(prev_area, prev_spots, area, spots, gap=1, region=1):
+            return self.flagged(self.rec(region=region, mag="B", days_ago=1 + gap, area=prev_area, number_spots=prev_spots),
+                                self.rec(region=region, mag="B", days_ago=1, area=area, number_spots=spots))
+        self.assertEqual(len(grow(400, 10, 500, 11)), 1)                          # area +100
+        self.assertEqual(grow(400, 10, 499, 19, region=2), [])                    # +99 area, +9 spots: not enough
+        self.assertEqual(len(grow(400, 10, 450, 20, region=3)), 1)                # spots +10
+        self.assertEqual(grow(400, 10, 550, 10, gap=2, region=4), [])             # +150 over 2 days = 75/day
+        self.assertEqual(len(grow(400, 10, 650, 10, gap=2, region=5)), 1)         # +250 over 2 days = 125/day
+        self.assertEqual(grow(400, 10, 900, 40, gap=3, region=6), [])             # previous record too old to compare
+        new = grow(100, 3, 350, 12, region=7)
+        self.assertIn("area up 250 millionths", new[0].description)
+
+    def test_region_with_no_history_cannot_show_growth(self):
+        self.assertEqual(self.flagged(self.rec(mag="B", area=900, number_spots=40)), [])
+
+    # ---- combining ---------------------------------------------------------------------------------
+    def test_description_lists_every_reason(self):
+        new = self.flagged(self.rec(x_flare_probability=12, m_xray_events=2))
+        d = new[0].description
+        for part in ("BGD (beta-gamma-delta) magnetic classification", "X-class flare probability 12%",
+                     "2 M/X-class flares already reported", "Earth-facing at S15E07"):
+            self.assertIn(part, d)
+        self.assertNotIn("M-class flare probability", d)
+
+    def test_min_criteria(self):
+        self.cfg["sunspots"]["min_criteria"] = 2
+        self.assertEqual(self.flagged(self.rec(region=1)), [])                              # class only
+        self.assertEqual(len(self.flagged(self.rec(region=2, x_flare_probability=10))), 1)  # class + X chance
+
+    def test_attributes_can_be_turned_off(self):
+        sp = self.cfg["sunspots"]
+        everything = [self.rec(region=1, days_ago=2, area=300, number_spots=5),
+                      self.rec(region=1, x_flare_probability=40, m_xray_events=3, area=700, number_spots=30)]
+        sp.update(dangerous_classes=[], growth_area_min_increase=0, growth_spots_min_increase=0,
+                  x_flare_probability_min=0, flare_history_min_events=0)
+        self.assertEqual(self.flagged(*everything), [])
+        sp["x_flare_probability_min"] = 10
+        self.assertEqual(len(self.flagged(*everything)), 1)
+
+    # ---- geometry, age, other classes ---------------------------------------------------------------
+    def test_must_be_earth_facing(self):
+        everything = dict(x_flare_probability=40, m_xray_events=3)
+        self.assertEqual(self.flagged(self.rec(loc="S15E75", **everything)), [])
+        self.assertEqual(len(self.flagged(self.rec(region=2, loc="S15E60", **everything))), 1)
+        self.assertEqual(len(self.flagged(self.rec(region=3, loc="N10W60", **everything))), 1)
+        self.assertEqual(self.flagged(self.rec(region=4, loc="N09W61", **everything)), [])
+        self.cfg["sunspots"]["max_longitude"] = 80                                           # admin widens the cone
+        self.assertEqual(len(self.flagged(self.rec(region=5, loc="N09W75"), self.rec(region=6, loc="S01E79"))), 2)
+
+    def test_older_bgd_record_superseded(self):
+        self.assertEqual(self.flagged(self.rec(days_ago=2, mag="BGD"), self.rec(days_ago=1, mag="BG")), [])
+
+    def test_other_classes_configurable(self):
+        recs = [self.rec(mag="BD", region=1), self.rec(mag="GD", region=2), self.rec(mag="BG", region=3)]
+        self.assertEqual(self.flagged(*recs), [])
+        self.cfg["sunspots"]["dangerous_classes"] = ["bgd", "GD", "BD"]                      # case-insensitive
         self.assertEqual(len(self.cycle()), 2)
 
-    def test_earth_facing_boundary_and_sign(self):
-        self.feed(self.rec(region=1, loc="S15E60"), self.rec(region=2, loc="N10W60"),
-                  self.rec(region=3, loc="S15E61"), self.rec(region=4, loc="N09W75"))
-        new = self.cycle()
-        self.assertEqual(sorted(a.title.split(":")[0] for a in new),
-                         ["Dangerous sunspot AR1", "Dangerous sunspot AR2"])
-        self.cfg["sunspots"]["max_longitude"] = 80                              # admin widens the cone
-        self.assertEqual(len(self.cycle()), 2)                                  # AR3 + AR4 now qualify
-
     def test_location_fallback_to_longitude_field(self):
-        self.feed(self.rec(region=1, loc="", lon=7), self.rec(region=2, loc="", lon=-67),
-                  self.rec(region=3, loc="", lon=None))
-        new = self.cycle()
+        new = self.flagged(self.rec(region=1, loc="", lon=7), self.rec(region=2, loc="", lon=-67),
+                           self.rec(region=3, loc="", lon=None))
         self.assertEqual(len(new), 1)
         self.assertIn("AR1", new[0].title)
 
     def test_stale_record_ignored(self):
-        self.feed(self.rec(days_ago=6))
-        self.assertEqual(self.cycle(), [])
+        self.assertEqual(self.flagged(self.rec(days_ago=6)), [])
 
+    # ---- episodes -----------------------------------------------------------------------------------
     def test_no_repeat_next_day_then_realert_after_clearing_and_cooldown(self):
         self.feed(self.rec(days_ago=1))
         self.assertEqual(len(self.cycle(NOW)), 1)
         day2 = NOW + timedelta(days=1)
-        self.feed(self.rec(days_ago=1), self.rec(days_ago=0, base=day2))        # still BGD today
+        self.feed(self.rec(days_ago=1), self.rec(days_ago=0, base=day2))        # still flagged today
         self.assertEqual(self.cycle(day2), [])                                  # same episode
         day3 = NOW + timedelta(days=2)
-        self.feed(self.rec(days_ago=0, mag="BG", base=day3))                    # complexity dropped
+        self.feed(self.rec(days_ago=0, mag="BG", base=day3))                    # nothing met any more
         self.assertEqual(self.cycle(day3), [])
         early = NOW + timedelta(days=2, hours=1)
-        self.feed(self.rec(days_ago=0, base=early))                             # BGD again, but see below
+        self.feed(self.rec(days_ago=0, base=early))
         self.cfg["sunspots"]["cooldown_minutes"] = 10 * 24 * 60                 # long cooldown blocks re-alert
         self.assertEqual(self.cycle(early), [])
         self.cfg["sunspots"]["cooldown_minutes"] = 1440
         self.feed(self.rec(days_ago=0, mag="BG", base=early))
         self.cycle(early)                                                       # clears again
         day4 = NOW + timedelta(days=3)
-        self.feed(self.rec(days_ago=0, base=day4))                              # BGD again, cooldown elapsed
+        self.feed(self.rec(days_ago=0, base=day4))                              # flagged again, cooldown elapsed
         self.assertEqual(len(self.cycle(day4)), 1)
 
     def test_disabled_and_failed_source(self):
@@ -337,12 +411,24 @@ class Sunspots(Base):
         self.f.data[self.cfg["sunspots"]["url"]] = OSError("down")
         self.assertEqual(self.cycle(), [])                                      # no crash, feed still written
 
+    def test_health_notes_show_why(self):
+        self.feed(self.rec(region=1, x_flare_probability=12), self.rec(region=2, loc="S10E80"))
+        self.cycle()
+        notes = {n["region"]: n for n in sa._NOTES["sunspots"]}
+        self.assertTrue(notes[1]["flagged"])
+        self.assertIn("X-flare chance 12%", notes[1]["reasons"])
+        self.assertFalse(notes[2]["earth_facing"])
+
     def test_bad_sunspot_config_rejected(self):
-        for bad in ({"dangerous_classes": []}, {"dangerous_classes": "BGD"}, {"max_longitude": 200}):
+        for bad in ({"dangerous_classes": "BGD"}, {"dangerous_classes": [""]}, {"max_longitude": 200},
+                    {"min_criteria": 0}, {"x_flare_probability_min": -1}, {"growth_window_days": 0}):
             cfg = sa.load_config(os.path.join(HERE, "test_config.toml"))
             cfg["sunspots"].update(bad)
             with self.assertRaises(sa.ConfigError, msg=str(bad)):
                 sa.validate_config(cfg)
+        cfg = sa.load_config(os.path.join(HERE, "test_config.toml"))
+        cfg["sunspots"]["dangerous_classes"] = []                               # allowed: turns the class test off
+        sa.validate_config(cfg)
 
 
 # Real sentences from SWPC forecast discussions issued 13-15 Oct 2026. All describe a stream that was

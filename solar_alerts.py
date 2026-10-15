@@ -175,6 +175,9 @@ KINDS = {
     "loc": lambda v: v in ("ignore", "alert"),
     "regex": lambda v: bool(re.compile(v)) if isinstance(v, str) else False,
     "strs": lambda v: isinstance(v, list) and len(v) > 0 and all(isinstance(x, str) and x.strip() for x in v),
+    "strs0": lambda v: isinstance(v, list) and all(isinstance(x, str) and x.strip() for x in v),   # may be empty
+    "nonneg": lambda v: _is_num(v) and v >= 0,
+    "posint": lambda v: isinstance(v, int) and not isinstance(v, bool) and v >= 1,
 }
 
 THRESHOLD_RULES = ["protons.ge10mev", "protons.ge100mev", "solar_wind.speed",
@@ -206,9 +209,12 @@ def _schema():
               (f"{sec}.partial_facing_max_longitude", "num"),
               (f"{sec}.unknown_location", "loc"), (f"{sec}.link", "str")]
     s.append(("flares.min_class", "class"))
-    s += [("sunspots.enabled", "bool"), ("sunspots.url", "str"), ("sunspots.dangerous_classes", "strs"),
-          ("sunspots.max_longitude", "num"), ("sunspots.max_age_days", "num"),
-          ("sunspots.cooldown_minutes", "num"), ("sunspots.link", "str")]
+    s += [("sunspots.enabled", "bool"), ("sunspots.url", "str"), ("sunspots.dangerous_classes", "strs0"),
+          ("sunspots.max_longitude", "num"), ("sunspots.max_age_days", "nonneg"),
+          ("sunspots.cooldown_minutes", "nonneg"), ("sunspots.link", "str"),
+          ("sunspots.min_criteria", "posint"), ("sunspots.growth_window_days", "posint"),
+          ("sunspots.growth_area_min_increase", "nonneg"), ("sunspots.growth_spots_min_increase", "nonneg"),
+          ("sunspots.x_flare_probability_min", "nonneg"), ("sunspots.flare_history_min_events", "nonneg")]
     for r in ("speed", "density", "bt", "bz"):
         s.append((f"solar_wind.{r}.field", "str"))
     for r in THRESHOLD_RULES:
@@ -585,39 +591,75 @@ HALE_NAMES = {"A": "alpha", "B": "beta", "G": "gamma", "D": "delta"}
 
 
 def check_sunspots(cfg, fetch, now):
-    """Earth-facing sunspot regions whose magnetic class is in dangerous_classes (default BGD).
+    """Earth-facing sunspot regions that look potentially dangerous.
 
-    Source: NOAA Solar Region Summary (one record per region per day, ~1 day old).
-    Only each region's most recent record counts. Longitude is taken from the location text
-    (e.g. S15E07) and compared by absolute value, so the E/W sign convention doesn't matter."""
+    A region is flagged when it is within max_longitude of disk centre AND at least min_criteria of the
+    enabled attributes are met (none is required on its own):
+      * magnetic class in dangerous_classes (default BGD)
+      * rapid growth: area and/or spot count up by the given amount per day versus the previous record
+      * NOAA's X-class flare probability >= x_flare_probability_min   (M-class probability is ignored)
+      * M/X-class flares already reported for the region (flare_history_min_events)
+    A value of 0 (or an empty class list) turns an attribute off.
+
+    Source: NOAA Solar Region Summary (one record per region per day, ~1 day old). Longitude is read from
+    the location text (e.g. S15E07) and compared by absolute value, so the E/W sign convention doesn't matter."""
     c = cfg["sunspots"]
     if not c["enabled"]:
         return [], {}
     wanted = {x.strip().upper() for x in c["dangerous_classes"]}
-    cutoff = now - timedelta(days=c["max_age_days"])
-    latest = {}
+    newest_ok = now - timedelta(days=c["max_age_days"])
+    horizon = newest_ok - timedelta(days=c["growth_window_days"])
+    history = {}
     for r in fetch.json(c["url"]):
         t, num = parse_time(r.get("observed_date")), r.get("region")
-        if t is None or t < cutoff or num in (None, ""):
-            continue
-        if num not in latest or t > latest[num][0]:
-            latest[num] = (t, r)
-    alerts, conds = [], {}
-    for num, (t, r) in sorted(latest.items(), key=lambda kv: str(kv[0])):
+        if t is not None and t >= horizon and num not in (None, ""):
+            history.setdefault(num, []).append((t, r))
+    alerts, conds, notes = [], {}, []
+    for num, recs in sorted(history.items(), key=lambda kv: str(kv[0])):
+        recs.sort(key=lambda x: x[0])
+        t, r = recs[-1]
+        if t < newest_ok:
+            continue                                        # no recent record for this region
         loc = str(r.get("location") or "").strip().upper()
         m = SPOT_LOC_RE.match(loc)
         lon = float(m.group(4)) if m else to_float(r.get("longitude"))
         if lon is None:
             continue                                        # position unknown: leave state unchanged
-        lon = abs(lon)
+        facing_now = abs(lon) <= c["max_longitude"]
         cls = re.sub(r"\s", "", str(r.get("mag_class") or "")).upper()
+        name = "-".join(HALE_NAMES.get(ch, ch) for ch in cls)
+        why = []                                            # (short label, long explanation)
+        if cls and cls in wanted:
+            why.append((f"{name} magnetic class", f"{cls} ({name}) magnetic classification"))
+        prev = recs[-2] if len(recs) > 1 and (t - recs[-2][0]) <= timedelta(days=c["growth_window_days"]) else None
+        if prev:
+            days = max((t - prev[0]).days, 1)
+            da = (to_float(r.get("area")) or 0) - (to_float(prev[1].get("area")) or 0) \
+                if to_float(r.get("area")) is not None and to_float(prev[1].get("area")) is not None else None
+            ds = (to_float(r.get("number_spots")) or 0) - (to_float(prev[1].get("number_spots")) or 0) \
+                if to_float(r.get("number_spots")) is not None and to_float(prev[1].get("number_spots")) is not None else None
+            grew = []
+            if c["growth_area_min_increase"] > 0 and da is not None and da / days >= c["growth_area_min_increase"]:
+                grew.append(f"area up {da:g} millionths")
+            if c["growth_spots_min_increase"] > 0 and ds is not None and ds / days >= c["growth_spots_min_increase"]:
+                grew.append(f"{ds:g} more spots")
+            if grew:
+                why.append(("rapid growth", f"rapid growth ({', '.join(grew)} in {days} day{'s' if days > 1 else ''})"))
+        xp = to_float(r.get("x_flare_probability"))
+        if c["x_flare_probability_min"] > 0 and xp is not None and xp >= c["x_flare_probability_min"]:
+            why.append((f"X-flare chance {xp:g}%", f"NOAA X-class flare probability {xp:g}%"))
+        nflares = (to_float(r.get("m_xray_events")) or 0) + (to_float(r.get("x_xray_events")) or 0)
+        if c["flare_history_min_events"] > 0 and nflares >= c["flare_history_min_events"]:
+            why.append(("M/X flares already", f"{nflares:g} M/X-class flare{'s' if nflares != 1 else ''} already reported"))
         group = f"sunspot_{num}"
-        breached = cls in wanted and lon <= c["max_longitude"]
+        breached = facing_now and len(why) >= c["min_criteria"]
         conds[group] = breached
+        if facing_now or why:
+            notes.append({"region": num, "location": loc, "mag_class": cls, "earth_facing": facing_now,
+                          "reasons": [w[0] for w in why], "flagged": breached})
         if not breached:
             continue
-        name = "-".join(HALE_NAMES.get(ch, ch) for ch in cls)
-        where = loc or f"{lon:g} deg from disk centre"
+        where = loc or f"{abs(lon):g} deg from disk centre"
         extra = []
         if r.get("spot_class"):
             extra.append(f"Sunspot class {r['spot_class']}")
@@ -625,17 +667,15 @@ def check_sunspots(cfg, fetch, now):
             extra.append(f"area {r['area']} millionths")
         if to_float(r.get("number_spots")) is not None:
             extra.append(f"{r['number_spots']} spots")
-        probs = [f"{k}-class {r[f'{k.lower()}_flare_probability']}%" for k in ("M", "X")
-                 if to_float(r.get(f"{k.lower()}_flare_probability")) is not None]
         alerts.append(Alert(
             key=f"sunspot:{num}:{iso(t)}", category="Sunspot",
-            title=f"Dangerous sunspot AR{num}: {name} magnetic class, Earth-facing ({where})",
-            description=f"Sunspot region AR{num} has a {cls} ({name}) magnetic classification and is "
-                        f"Earth-facing at {where}, which makes large flares more likely. "
+            title=f"Dangerous sunspot AR{num}: {', '.join(w[0] for w in why)} (Earth-facing, {where})",
+            description=f"Sunspot region AR{num} is Earth-facing at {where} and shows: "
+                        + "; ".join(w[1] for w in why) + ". "
                         + ("; ".join(extra) + ". " if extra else "")
-                        + (f"NOAA 24-hour flare probabilities: {', '.join(probs)}. " if probs else "")
                         + f"Based on NOAA's region summary for {t:%Y-%m-%d} UTC.",
             link=c["link"], event_time=t, group=group, cooldown_minutes=c["cooldown_minutes"]))
+    _NOTES["sunspots"] = notes[:20]
     return alerts, conds
 
 
