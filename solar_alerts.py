@@ -176,6 +176,8 @@ KINDS = {
     "regex": lambda v: bool(re.compile(v)) if isinstance(v, str) else False,
     "strs": lambda v: isinstance(v, list) and len(v) > 0 and all(isinstance(x, str) and x.strip() for x in v),
     "strs0": lambda v: isinstance(v, list) and all(isinstance(x, str) and x.strip() for x in v),   # may be empty
+    "mcintosh": lambda v: isinstance(v, list) and all(
+        isinstance(x, str) and re.fullmatch(r"[ABCDEFH][XRSAHK][XOIC]", x.strip(), re.I) for x in v),
     "nonneg": lambda v: _is_num(v) and v >= 0,
     "posint": lambda v: isinstance(v, int) and not isinstance(v, bool) and v >= 1,
 }
@@ -212,7 +214,7 @@ def _schema():
     s += [("sunspots.enabled", "bool"), ("sunspots.url", "str"), ("sunspots.dangerous_classes", "strs0"),
           ("sunspots.max_longitude", "num"), ("sunspots.max_age_days", "nonneg"),
           ("sunspots.cooldown_minutes", "nonneg"), ("sunspots.link", "str"),
-          ("sunspots.min_criteria", "posint"), ("sunspots.growth_window_days", "posint"),
+          ("sunspots.min_criteria", "posint"), ("sunspots.mcintosh_classes", "mcintosh"), ("sunspots.growth_window_days", "posint"),
           ("sunspots.growth_area_min_increase", "nonneg"), ("sunspots.growth_spots_min_increase", "nonneg"),
           ("sunspots.x_flare_probability_min", "nonneg"), ("sunspots.flare_history_min_events", "nonneg")]
     for r in ("speed", "density", "bt", "bz"):
@@ -279,6 +281,8 @@ class Alert:
     group: str | None = None     # threshold/cooldown group
     cooldown_minutes: float = 0
     near_minutes: float = 0      # suppress if same category alerted within +/- this many minutes
+    attrs: tuple = ()            # attribute codes met now; lets later runs announce newly met ones
+    on_update: object = None     # callable(newly_met_codes) -> (title, description)
 
 
 class Store:
@@ -291,6 +295,8 @@ class Store:
                 description TEXT, link TEXT, event_time TEXT, created_at TEXT);
             CREATE TABLE IF NOT EXISTS groups(
                 name TEXT PRIMARY KEY, active INTEGER DEFAULT 0, last_alert TEXT);
+            CREATE TABLE IF NOT EXISTS reported(
+                grp TEXT, attr TEXT, PRIMARY KEY(grp, attr));
         """)
 
     def has_key(self, key):
@@ -304,6 +310,15 @@ class Store:
     def group(self, name):
         r = self.db.execute("SELECT active,last_alert FROM groups WHERE name=?", (name,)).fetchone()
         return (bool(r[0]), parse_time(r[1])) if r else (False, None)
+
+    def reported(self, group):
+        return {r[0] for r in self.db.execute("SELECT attr FROM reported WHERE grp=?", (group,))}
+
+    def add_reported(self, group, attrs):
+        self.db.executemany("INSERT OR IGNORE INTO reported(grp, attr) VALUES(?,?)", [(group, a) for a in attrs])
+
+    def clear_reported(self, group):
+        self.db.execute("DELETE FROM reported WHERE grp=?", (group,))
 
     def mark_alerted(self, name, now):
         self.db.execute("INSERT INTO groups(name,active,last_alert) VALUES(?,0,?) "
@@ -596,10 +611,12 @@ def check_sunspots(cfg, fetch, now):
     A region is flagged when it is within max_longitude of disk centre AND at least min_criteria of the
     enabled attributes are met (none is required on its own):
       * magnetic class in dangerous_classes (default BGD)
-      * rapid growth: area and/or spot count up by the given amount per day versus the previous record
+      * rapid growth: area and/or spot count up by the given amount per day versus the previous record,
+        counted only when the region's McIntosh class is in mcintosh_classes
       * NOAA's X-class flare probability >= x_flare_probability_min   (M-class probability is ignored)
       * M/X-class flares already reported for the region (flare_history_min_events)
-    A value of 0 (or an empty class list) turns an attribute off.
+    A value of 0 (or an empty class list) turns an attribute off. While a region stays flagged, a further
+    alert is issued whenever an attribute is met that has not been announced yet.
 
     Source: NOAA Solar Region Summary (one record per region per day, ~1 day old). Longitude is read from
     the location text (e.g. S15E07) and compared by absolute value, so the E/W sign convention doesn't matter."""
@@ -607,6 +624,7 @@ def check_sunspots(cfg, fetch, now):
     if not c["enabled"]:
         return [], {}
     wanted = {x.strip().upper() for x in c["dangerous_classes"]}
+    mcintosh = {x.strip().upper() for x in c["mcintosh_classes"]}
     newest_ok = now - timedelta(days=c["max_age_days"])
     horizon = newest_ok - timedelta(days=c["growth_window_days"])
     history = {}
@@ -628,53 +646,67 @@ def check_sunspots(cfg, fetch, now):
         facing_now = abs(lon) <= c["max_longitude"]
         cls = re.sub(r"\s", "", str(r.get("mag_class") or "")).upper()
         name = "-".join(HALE_NAMES.get(ch, ch) for ch in cls)
-        why = []                                            # (short label, long explanation)
+        spot_class = str(r.get("spot_class") or "").strip()
+        why = []                                            # (code, short label, long explanation)
         if cls and cls in wanted:
-            why.append((f"{name} magnetic class", f"{cls} ({name}) magnetic classification"))
+            why.append(("class", f"{name} magnetic class", f"{cls} ({name}) magnetic classification"))
         prev = recs[-2] if len(recs) > 1 and (t - recs[-2][0]) <= timedelta(days=c["growth_window_days"]) else None
-        if prev:
+        growth_class_ok = spot_class.upper() in mcintosh
+        if prev and growth_class_ok:
             days = max((t - prev[0]).days, 1)
-            da = (to_float(r.get("area")) or 0) - (to_float(prev[1].get("area")) or 0) \
-                if to_float(r.get("area")) is not None and to_float(prev[1].get("area")) is not None else None
-            ds = (to_float(r.get("number_spots")) or 0) - (to_float(prev[1].get("number_spots")) or 0) \
-                if to_float(r.get("number_spots")) is not None and to_float(prev[1].get("number_spots")) is not None else None
+            a_now, a_prev = to_float(r.get("area")), to_float(prev[1].get("area"))
+            n_now, n_prev = to_float(r.get("number_spots")), to_float(prev[1].get("number_spots"))
+            da = a_now - a_prev if a_now is not None and a_prev is not None else None
+            ds = n_now - n_prev if n_now is not None and n_prev is not None else None
             grew = []
             if c["growth_area_min_increase"] > 0 and da is not None and da / days >= c["growth_area_min_increase"]:
                 grew.append(f"area up {da:g} millionths")
             if c["growth_spots_min_increase"] > 0 and ds is not None and ds / days >= c["growth_spots_min_increase"]:
                 grew.append(f"{ds:g} more spots")
             if grew:
-                why.append(("rapid growth", f"rapid growth ({', '.join(grew)} in {days} day{'s' if days > 1 else ''})"))
+                why.append(("growth", "rapid growth",
+                            f"rapid growth ({', '.join(grew)} in {days} day{'s' if days > 1 else ''}; "
+                            f"McIntosh class {spot_class})"))
         xp = to_float(r.get("x_flare_probability"))
         if c["x_flare_probability_min"] > 0 and xp is not None and xp >= c["x_flare_probability_min"]:
-            why.append((f"X-flare chance {xp:g}%", f"NOAA X-class flare probability {xp:g}%"))
+            why.append(("xprob", f"X-flare chance {xp:g}%", f"NOAA X-class flare probability {xp:g}%"))
         nflares = (to_float(r.get("m_xray_events")) or 0) + (to_float(r.get("x_xray_events")) or 0)
         if c["flare_history_min_events"] > 0 and nflares >= c["flare_history_min_events"]:
-            why.append(("M/X flares already", f"{nflares:g} M/X-class flare{'s' if nflares != 1 else ''} already reported"))
+            why.append(("flares", "M/X flares already",
+                        f"{nflares:g} M/X-class flare{'s' if nflares != 1 else ''} already reported"))
         group = f"sunspot_{num}"
         breached = facing_now and len(why) >= c["min_criteria"]
         conds[group] = breached
         if facing_now or why:
-            notes.append({"region": num, "location": loc, "mag_class": cls, "earth_facing": facing_now,
-                          "reasons": [w[0] for w in why], "flagged": breached})
+            notes.append({"region": num, "location": loc, "mag_class": cls, "spot_class": spot_class,
+                          "earth_facing": facing_now, "reasons": [w[1] for w in why], "flagged": breached})
         if not breached:
             continue
         where = loc or f"{abs(lon):g} deg from disk centre"
         extra = []
-        if r.get("spot_class"):
-            extra.append(f"Sunspot class {r['spot_class']}")
+        if spot_class:
+            extra.append(f"Sunspot class {spot_class}")
         if to_float(r.get("area")) is not None:
             extra.append(f"area {r['area']} millionths")
         if to_float(r.get("number_spots")) is not None:
             extra.append(f"{r['number_spots']} spots")
+        basis = f"Based on NOAA's region summary for {t:%Y-%m-%d} UTC."
+
+        def updater(fresh, why=why, num=num, where=where, basis=basis):
+            news = [w for w in why if w[0] in fresh]
+            return (f"Sunspot AR{num} update: now also {', '.join(w[1] for w in news)} (Earth-facing, {where})",
+                    f"Sunspot region AR{num}, already flagged as potentially dangerous, now also shows: "
+                    + "; ".join(w[2] for w in news) + ". All current attributes: "
+                    + "; ".join(w[2] for w in why) + f". {basis}")
+
         alerts.append(Alert(
             key=f"sunspot:{num}:{iso(t)}", category="Sunspot",
-            title=f"Dangerous sunspot AR{num}: {', '.join(w[0] for w in why)} (Earth-facing, {where})",
+            title=f"Dangerous sunspot AR{num}: {', '.join(w[1] for w in why)} (Earth-facing, {where})",
             description=f"Sunspot region AR{num} is Earth-facing at {where} and shows: "
-                        + "; ".join(w[1] for w in why) + ". "
-                        + ("; ".join(extra) + ". " if extra else "")
-                        + f"Based on NOAA's region summary for {t:%Y-%m-%d} UTC.",
-            link=c["link"], event_time=t, group=group, cooldown_minutes=c["cooldown_minutes"]))
+                        + "; ".join(w[2] for w in why) + ". "
+                        + ("; ".join(extra) + ". " if extra else "") + basis,
+            link=c["link"], event_time=t, group=group, cooldown_minutes=c["cooldown_minutes"],
+            attrs=tuple(w[0] for w in why), on_update=updater))
     _NOTES["sunspots"] = notes[:20]
     return alerts, conds
 
@@ -685,9 +717,35 @@ CHECKS = [check_flares, check_filaments, check_coronal_hole, check_storm_forecas
 
 # --------------------------------------------------------------------------- pipeline + feed
 
+def announce_new_attributes(store, a, now):
+    """For a region whose episode is already open: alert once about attributes not yet announced."""
+    if not a.attrs or a.on_update is None:
+        return None
+    seen = store.reported(a.group)
+    if not seen:                                   # episode began before this feature existed: seed quietly
+        store.add_reported(a.group, a.attrs)
+        return None
+    fresh = sorted(x for x in a.attrs if x not in seen)
+    if not fresh:
+        return None
+    store.add_reported(a.group, fresh)
+    title, description = a.on_update(fresh)
+    upd = Alert(key=f"{a.key}+{'+'.join(fresh)}", category=a.category, title=title, description=description,
+                link=a.link, event_time=a.event_time)
+    if store.has_key(upd.key):
+        return None
+    store.add(upd, now)
+    return upd
+
+
 def process(store, alerts, conditions, now):
     new = []
     for a in sorted(alerts, key=lambda x: x.event_time):
+        if a.group and a.attrs and store.group(a.group)[0]:       # open episode: only newly met attributes
+            upd = announce_new_attributes(store, a, now)
+            if upd:
+                new.append(upd)
+            continue
         if store.has_key(a.key):
             continue
         if a.near_minutes and store.near(a.category, a.event_time, a.near_minutes):
@@ -699,10 +757,13 @@ def process(store, alerts, conditions, now):
             if a.cooldown_minutes and last and now - last < timedelta(minutes=a.cooldown_minutes):
                 continue
             store.mark_alerted(a.group, now)
+            store.add_reported(a.group, a.attrs)
         store.add(a, now)
         new.append(a)
     for g, breached in conditions.items():
         store.set_active(g, breached)
+        if not breached:
+            store.clear_reported(g)                # episode over: the next one announces everything again
     store.commit()
     return new
 

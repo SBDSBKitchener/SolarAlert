@@ -59,6 +59,9 @@ link = "https://sdo.gsfc.nasa.gov/data/"
 #                              record. 0 turns it off.
 #   growth_spots_min_increase  rapid growth: number of spots up by at least this many per day. 0 = off.
 #   growth_window_days         the previous record may be at most this many days older.
+#   mcintosh_classes           rapid growth counts ONLY for regions whose McIntosh class (NOAA's
+#                              "spot_class", e.g. Fkc) is in this list; case-insensitive. [] turns
+#                              the growth attribute off. Other attributes are not affected.
 #   x_flare_probability_min    NOAA's X-class flare probability (%), alert when >= this. 0 = off.
 #                              (NOAA's M-class probability is deliberately not used.)
 #   flare_history_min_events   M- plus X-class flares already reported for the region in its latest
@@ -67,8 +70,10 @@ link = "https://sdo.gsfc.nasa.gov/data/"
 #
 # Source: NOAA Solar Region Summary, updated about once a day, so alerts lag by up to ~24 h.
 # max_age_days: ignore a region whose latest record is older than this.
-# A region alerts once per episode: no repeat while it stays flagged, and again only after it
-# has stopped being flagged AND cooldown_minutes has passed.
+# A region alerts once per episode. While it stays flagged you get one further alert whenever an
+# attribute is met that was not yet announced ("update: now also ..."); an attribute is announced
+# at most once per episode. After it stops being flagged and cooldown_minutes has passed, the next
+# episode announces everything again.
 
 [sunspots]
 enabled = true
@@ -79,6 +84,7 @@ dangerous_classes = ["BGD"]
 growth_area_min_increase = 100
 growth_spots_min_increase = 10
 growth_window_days = 2
+mcintosh_classes = ["Fkc", "Ekc", "Fki"]
 x_flare_probability_min = 10
 flare_history_min_events = 1
 max_age_days = 3

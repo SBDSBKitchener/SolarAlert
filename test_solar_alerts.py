@@ -278,7 +278,7 @@ class Sunspots(Base):
         ("2026-10-13", "S15E21", "BG", 480, 9, None, None), ("2026-10-14", "S15E07", "BGD", 500, 23, 10, 25),
         ("2026-10-15", "S15W05", "BGD", 620, 32, 10, 25)]
 
-    def test_ar4551_replay(self):
+    def replay(self):
         records, first = [], None
         for obs, loc, cls, area, spots, xp, mp in self.AR4551:
             records.append({"observed_date": obs, "region": 4551, "location": loc, "mag_class": cls, "area": area,
@@ -291,10 +291,22 @@ class Sunspots(Base):
             elif new:
                 self.fail(f"unexpected second alert on {obs}: {new[0].title}")
         self.assertIsNotNone(first)
-        obs, alert = first
+        return first
+
+    def test_ar4551_replay(self):
+        obs, alert = self.replay()
         self.assertEqual(obs, "2026-10-14")          # E71/E61 are outside the 60 deg cone; 11-13 Oct met nothing
-        for part in ("AR4551", "beta-gamma-delta", "rapid growth", "X-flare chance 10%", "Earth-facing", "S15E07"):
+        for part in ("AR4551", "beta-gamma-delta", "X-flare chance 10%", "Earth-facing", "S15E07"):
             self.assertIn(part, alert.title)
+        # Eki is not in the default McIntosh list (Fkc, Ekc, Fki), so its growth does not count
+        self.assertNotIn("rapid growth", alert.title)
+
+    def test_ar4551_replay_with_its_class_added_to_the_list(self):
+        self.cfg["sunspots"]["mcintosh_classes"] = ["Fkc", "Ekc", "Fki", "Eki"]
+        obs, alert = self.replay()
+        self.assertEqual(obs, "2026-10-14")
+        self.assertIn("rapid growth", alert.title)
+        self.assertIn("McIntosh class Eki", alert.description)
 
     # ---- individual attributes: each can flag a region on its own --------------------------------
     def test_class_alone_flags_without_any_flare_history(self):
@@ -316,8 +328,10 @@ class Sunspots(Base):
 
     def test_rapid_growth(self):
         def grow(prev_area, prev_spots, area, spots, gap=1, region=1):
-            return self.flagged(self.rec(region=region, mag="B", days_ago=1 + gap, area=prev_area, number_spots=prev_spots),
-                                self.rec(region=region, mag="B", days_ago=1, area=area, number_spots=spots))
+            return self.flagged(self.rec(region=region, mag="B", days_ago=1 + gap, area=prev_area, number_spots=prev_spots,
+                                         spot_class="Fkc"),
+                                self.rec(region=region, mag="B", days_ago=1, area=area, number_spots=spots,
+                                         spot_class="Fkc"))
         self.assertEqual(len(grow(400, 10, 500, 11)), 1)                          # area +100
         self.assertEqual(grow(400, 10, 499, 19, region=2), [])                    # +99 area, +9 spots: not enough
         self.assertEqual(len(grow(400, 10, 450, 20, region=3)), 1)                # spots +10
@@ -353,6 +367,108 @@ class Sunspots(Base):
         self.assertEqual(self.flagged(*everything), [])
         sp["x_flare_probability_min"] = 10
         self.assertEqual(len(self.flagged(*everything)), 1)
+
+
+    # ---- McIntosh gate on rapid growth ---------------------------------------------------------------
+    def grown(self, spot_class, region=1, **kw):
+        return self.flagged(self.rec(region=region, mag="B", days_ago=2, area=300, number_spots=5, spot_class=spot_class),
+                            self.rec(region=region, mag="B", days_ago=1, area=600, number_spots=25, spot_class=spot_class, **kw))
+
+    def test_growth_counts_only_for_listed_mcintosh_classes(self):
+        self.assertEqual(self.grown("Eki", region=1), [])                       # real class of AR4551: not in the list
+        self.assertEqual(self.grown("Dai", region=2), [])
+        for i, cls in enumerate(("Fkc", "Ekc", "Fki"), start=3):
+            self.assertEqual(len(self.grown(cls, region=i)), 1, cls)
+        self.assertEqual(len(self.grown("fKC", region=9)), 1)                   # case-insensitive
+
+    def test_mcintosh_list_is_configurable_and_empty_turns_growth_off(self):
+        self.cfg["sunspots"]["mcintosh_classes"] = ["Eki"]
+        self.assertEqual(len(self.grown("Eki", region=1)), 1)
+        self.assertEqual(self.grown("Fkc", region=2), [])
+        self.cfg["sunspots"]["mcintosh_classes"] = []
+        self.assertEqual(self.grown("Eki", region=3), [])
+
+    def test_mcintosh_gate_does_not_affect_other_attributes(self):
+        new = self.flagged(self.rec(mag="BGD", spot_class="Axx"), self.rec(region=2, mag="B", spot_class="Axx",
+                                                                           x_flare_probability=20))
+        self.assertEqual(len(new), 2)
+
+    def test_mcintosh_class_validation(self):
+        for bad in (["Fkcc"], ["Zkc"], ["Fxx1"], ["Fk"], "Fkc"):
+            cfg = sa.load_config(os.path.join(HERE, "test_config.toml"))
+            cfg["sunspots"]["mcintosh_classes"] = bad
+            with self.assertRaises(sa.ConfigError, msg=str(bad)):
+                sa.validate_config(cfg)
+
+    # ---- announcing newly met attributes -------------------------------------------------------------
+    def day(self, n):
+        return NOW + timedelta(days=n)
+
+    def poll(self, n, **kw):
+        """One daily poll n days after NOW with a single region record dated that day."""
+        d = self.day(n)
+        return self.flagged(self.rec(days_ago=0, base=d, **kw), now=d)
+
+    def test_newly_met_attribute_is_announced_once(self):
+        first = self.poll(0, mag="B", x_flare_probability=12)                       # flagged by X chance only
+        self.assertEqual(len(first), 1)
+        self.assertIn("X-flare chance 12%", first[0].title)
+        upd = self.poll(1, mag="BGD", x_flare_probability=12)                       # class newly met
+        self.assertEqual(len(upd), 1, self.titles(upd))
+        self.assertIn("update", upd[0].title)
+        self.assertIn("beta-gamma-delta magnetic class", upd[0].title)
+        self.assertNotIn("X-flare chance", upd[0].title)                              # already announced
+        self.assertIn("already flagged", upd[0].description)
+        self.assertIn("X-class flare probability 12%", upd[0].description)           # full picture is in the body
+        self.assertEqual(self.poll(2, mag="BGD", x_flare_probability=12), [])         # nothing new
+        self.assertEqual(self.cycle(self.day(2)), [])                                 # same poll again: still nothing
+
+    def test_several_attributes_in_one_update_and_sticky_within_episode(self):
+        self.poll(0, mag="B", x_flare_probability=12)
+        upd = self.poll(1, mag="BGD", x_flare_probability=12, m_xray_events=2)
+        self.assertEqual(len(upd), 1)
+        self.assertIn("beta-gamma-delta magnetic class", upd[0].title)
+        self.assertIn("M/X flares already", upd[0].title)
+        # flares attribute drops out and returns later in the same episode: not announced again
+        self.assertEqual(self.poll(2, mag="BGD", x_flare_probability=12, m_xray_events=0), [])
+        self.assertEqual(self.poll(3, mag="BGD", x_flare_probability=12, m_xray_events=3), [])
+
+    def test_growth_announced_when_it_newly_appears(self):
+        self.cfg["sunspots"]["mcintosh_classes"] = ["Fkc", "Ekc", "Fki"]
+        d0, d1 = self.day(0), self.day(1)
+        self.flagged(self.rec(days_ago=0, base=d0, mag="BGD", spot_class="Fkc", area=300, number_spots=5), now=d0)
+        upd = self.flagged(self.rec(days_ago=1, base=d1, mag="BGD", spot_class="Fkc", area=300, number_spots=5),
+                           self.rec(days_ago=0, base=d1, mag="BGD", spot_class="Fkc", area=520, number_spots=9), now=d1)
+        self.assertEqual(len(upd), 1)
+        self.assertIn("rapid growth", upd[0].title)
+        self.assertIn("McIntosh class Fkc", upd[0].description)
+
+    def test_new_episode_announces_everything_again(self):
+        self.poll(0, mag="BGD", x_flare_probability=12)
+        self.assertEqual(self.poll(1, mag="B", x_flare_probability=0), [])          # clears
+        again = self.poll(3, mag="BGD", x_flare_probability=12)                     # cooldown (24 h) elapsed
+        self.assertEqual(len(again), 1)
+        self.assertNotIn("update", again[0].title)
+        self.assertIn("beta-gamma-delta magnetic class", again[0].title)
+        self.assertIn("X-flare chance 12%", again[0].title)
+
+    def test_update_respects_min_criteria_and_earth_facing(self):
+        self.cfg["sunspots"]["min_criteria"] = 2
+        self.assertEqual(self.poll(0, mag="BGD"), [])                                # one attribute: not flagged
+        first = self.poll(1, mag="BGD", x_flare_probability=12)                      # two: flagged, both announced
+        self.assertEqual(len(first), 1)
+        self.assertNotIn("update", first[0].title)
+        self.assertEqual(self.poll(2, mag="BGD", x_flare_probability=12), [])
+        self.assertEqual(self.poll(3, mag="BGD", x_flare_probability=12, m_xray_events=1, loc="S15E80"), [])  # limb
+
+    def test_episode_started_before_this_feature_is_seeded_quietly(self):
+        # simulate the deployed state: region already flagged and active, nothing recorded as announced
+        self.store.set_active("sunspot_4551", True)
+        self.store.commit()
+        self.assertEqual(self.poll(0, mag="BGD", x_flare_probability=12), [])        # no spurious "update"
+        upd = self.poll(1, mag="BGD", x_flare_probability=12, m_xray_events=1)       # a genuinely new attribute
+        self.assertEqual(len(upd), 1)
+        self.assertIn("M/X flares already", upd[0].title)
 
     # ---- geometry, age, other classes ---------------------------------------------------------------
     def test_must_be_earth_facing(self):
