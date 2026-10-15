@@ -382,7 +382,7 @@ def hek_events(cfg, fetch, event_type, hours, now):
 def _hek_position(ev, c):
     """-> (lon, lat, facing_label|None, include?)"""
     lon, lat = to_float(ev.get("hgs_x")), to_float(ev.get("hgs_y"))
-    if lon is None or lat is None:
+    if lon is None or lat is None or (lon == 0 and lat == 0):      # SWPC reports 0,0 when it has no position
         return None, None, None, c["unknown_location"] == "alert"
     label = facing(lon, c["full_facing_max_longitude"], c["partial_facing_max_longitude"])
     return lon, lat, label, label is not None

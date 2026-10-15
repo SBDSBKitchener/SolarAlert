@@ -106,6 +106,21 @@ class SolarEvents(Base):
         self.assertTrue(any("X1.0" in t and "partially" in t for t in self.titles(new)))
         self.assertEqual(self.cycle(), [])                  # nothing repeated next poll
 
+    def test_swpc_placeholder_position_is_unknown_not_disk_centre(self):
+        # SWPC lists flares with hgs 0,0 when it has no position (seen live on 15 Oct 2026)
+        self.f.data[self.cfg["hek"]["url"]] = {"result": [self.ev("M7.1", 0, lat=0, kb="p", frm="SWPC")]}
+        self.assertEqual(self.cycle(), [])
+        # the same flare from another source with a real (limb) position is still not Earth-facing
+        self.f.data[self.cfg["hek"]["url"]] = {"result": [self.ev("M7.1", 0, lat=0, kb="p", frm="SWPC"),
+                                                          self.ev("M7.1", 80, lat=10, kb="q", frm="SSW")]}
+        self.assertEqual(len(self.cycle()), 1)                              # partial (near-limb) only
+        # and one with a real central position alerts once, not twice
+        self.f.data[self.cfg["hek"]["url"]] = {"result": [self.ev("M9.0", 0, lat=0, kb="r", frm="SWPC", minutes_ago=200),
+                                                          self.ev("M9.0", 1, lat=-12, kb="s", frm="SSW", minutes_ago=200)]}
+        new = self.cycle()
+        self.assertEqual(len(new), 1)
+        self.assertIn("Earth-facing", new[0].title)
+
     def test_threshold_is_configurable(self):
         self.f.data[self.cfg["hek"]["url"]] = {"result": [self.ev("M2.0", 10, kb="4")]}
         self.assertEqual(self.cycle(), [])
