@@ -45,7 +45,7 @@ def goes_flux(cls):
 def parse_time(s):
     s = str(s or "").strip().replace("Z", "")
     for fmt in ("%Y-%m-%d %H:%M:%S.%f", "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S.%f",
-                "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M"):
+                "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d"):
         try:
             return datetime.strptime(s, fmt).replace(tzinfo=timezone.utc)
         except ValueError:
@@ -132,6 +132,7 @@ KINDS = {
     "dir": lambda v: v in ("above", "below"),
     "loc": lambda v: v in ("ignore", "alert"),
     "regex": lambda v: bool(re.compile(v)) if isinstance(v, str) else False,
+    "strs": lambda v: isinstance(v, list) and len(v) > 0 and all(isinstance(x, str) and x.strip() for x in v),
 }
 
 THRESHOLD_RULES = ["protons.ge10mev", "protons.ge100mev", "solar_wind.speed",
@@ -163,6 +164,9 @@ def _schema():
               (f"{sec}.partial_facing_max_longitude", "num"),
               (f"{sec}.unknown_location", "loc"), (f"{sec}.link", "str")]
     s.append(("flares.min_class", "class"))
+    s += [("sunspots.enabled", "bool"), ("sunspots.url", "str"), ("sunspots.dangerous_classes", "strs"),
+          ("sunspots.max_longitude", "num"), ("sunspots.max_age_days", "num"),
+          ("sunspots.cooldown_minutes", "num"), ("sunspots.link", "str")]
     for r in THRESHOLD_RULES:
         s += [(f"{r}.enabled", "bool"), (f"{r}.threshold", "num"), (f"{r}.direction", "dir"),
               (f"{r}.lookback_minutes", "num"), (f"{r}.cooldown_minutes", "num")]
@@ -199,6 +203,8 @@ def validate_config(cfg):
             full, part = cfg[sec]["full_facing_max_longitude"], cfg[sec]["partial_facing_max_longitude"]
             if not 0 <= full <= part <= 180:
                 errors.append(f"{sec}: need 0 <= full_facing_max_longitude <= partial_facing_max_longitude <= 180")
+        if not 0 <= cfg["sunspots"]["max_longitude"] <= 180:
+            errors.append("sunspots: need 0 <= max_longitude <= 180")
     if errors:
         raise ConfigError("\n".join(errors))
 
@@ -485,8 +491,67 @@ def check_solar_wind(cfg, fetch, now):
     return alerts, conds
 
 
+SPOT_LOC_RE = re.compile(r"^([NS])(\d{1,2})([EW])(\d{1,3})$", re.I)
+HALE_NAMES = {"A": "alpha", "B": "beta", "G": "gamma", "D": "delta"}
+
+
+def check_sunspots(cfg, fetch, now):
+    """Earth-facing sunspot regions whose magnetic class is in dangerous_classes (default BGD).
+
+    Source: NOAA Solar Region Summary (one record per region per day, ~1 day old).
+    Only each region's most recent record counts. Longitude is taken from the location text
+    (e.g. S15E07) and compared by absolute value, so the E/W sign convention doesn't matter."""
+    c = cfg["sunspots"]
+    if not c["enabled"]:
+        return [], {}
+    wanted = {x.strip().upper() for x in c["dangerous_classes"]}
+    cutoff = now - timedelta(days=c["max_age_days"])
+    latest = {}
+    for r in fetch.json(c["url"]):
+        t, num = parse_time(r.get("observed_date")), r.get("region")
+        if t is None or t < cutoff or num in (None, ""):
+            continue
+        if num not in latest or t > latest[num][0]:
+            latest[num] = (t, r)
+    alerts, conds = [], {}
+    for num, (t, r) in sorted(latest.items(), key=lambda kv: str(kv[0])):
+        loc = str(r.get("location") or "").strip().upper()
+        m = SPOT_LOC_RE.match(loc)
+        lon = float(m.group(4)) if m else to_float(r.get("longitude"))
+        if lon is None:
+            continue                                        # position unknown: leave state unchanged
+        lon = abs(lon)
+        cls = re.sub(r"\s", "", str(r.get("mag_class") or "")).upper()
+        group = f"sunspot_{num}"
+        breached = cls in wanted and lon <= c["max_longitude"]
+        conds[group] = breached
+        if not breached:
+            continue
+        name = "-".join(HALE_NAMES.get(ch, ch) for ch in cls)
+        where = loc or f"{lon:g} deg from disk centre"
+        extra = []
+        if r.get("spot_class"):
+            extra.append(f"Sunspot class {r['spot_class']}")
+        if to_float(r.get("area")) is not None:
+            extra.append(f"area {r['area']} millionths")
+        if to_float(r.get("number_spots")) is not None:
+            extra.append(f"{r['number_spots']} spots")
+        probs = [f"{k}-class {r[f'{k.lower()}_flare_probability']}%" for k in ("M", "X")
+                 if to_float(r.get(f"{k.lower()}_flare_probability")) is not None]
+        alerts.append(Alert(
+            key=f"sunspot:{num}:{iso(t)}", category="Sunspot",
+            title=f"Dangerous sunspot AR{num}: {name} magnetic class, Earth-facing ({where})",
+            description=f"Sunspot region AR{num} has a {cls} ({name}) magnetic classification and is "
+                        f"Earth-facing at {where}, which makes large flares more likely. "
+                        + ("; ".join(extra) + ". " if extra else "")
+                        + (f"NOAA 24-hour flare probabilities: {', '.join(probs)}. " if probs else "")
+                        + f"Based on NOAA's region summary for {t:%Y-%m-%d} UTC.",
+            link=c["link"], event_time=t, group=group, cooldown_minutes=c["cooldown_minutes"]))
+    return alerts, conds
+
+
 CHECKS = [check_flares, check_filaments, check_coronal_hole, check_storm_forecast,
-          check_kp, check_protons, check_solar_wind]
+          check_kp, check_protons, check_solar_wind, check_sunspots]
 
 
 # --------------------------------------------------------------------------- pipeline + feed

@@ -45,6 +45,26 @@ partial_facing_max_longitude = 90
 unknown_location = "ignore"
 link = "https://sdo.gsfc.nasa.gov/data/"
 
+# ---------------------------------------------------------------- SUNSPOTS
+# Alerts when an Earth-facing sunspot region has one of the listed magnetic classes.
+# Source: NOAA Solar Region Summary (updated about once a day, so alerts lag by up to ~24 h).
+# dangerous_classes: Hale/Mount Wilson classes, case-insensitive, exact match.
+#   "BGD" = beta-gamma-delta (default). Add "GD" (gamma-delta) and/or "BD" (beta-delta)
+#   if you also want those, e.g.  dangerous_classes = ["BGD", "GD", "BD"]
+# max_longitude: degrees from the central meridian counted as Earth-facing (0-180).
+# max_age_days: ignore a region whose latest record is older than this.
+# A region alerts once per episode: no repeat while it stays qualifying, and again only after it
+# has stopped qualifying AND cooldown_minutes has passed.
+
+[sunspots]
+enabled = true
+url = "https://services.swpc.noaa.gov/json/solar_regions.json"
+dangerous_classes = ["BGD"]
+max_longitude = 60
+max_age_days = 3
+cooldown_minutes = 1440
+link = "https://www.swpc.noaa.gov/products/solar-region-summary"
+
 # ---------------------------------------------------------------- GEOMAGNETIC
 
 [geomagnetic.coronal_hole]

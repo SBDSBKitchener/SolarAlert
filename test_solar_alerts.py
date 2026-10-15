@@ -44,6 +44,7 @@ class Base(unittest.TestCase):
             c["geomagnetic"]["coronal_hole"]["url"]: ":Issued: 2026 Oct 13 0030 UTC\nNothing here.",
             c["geomagnetic"]["storm_forecast"]["alerts_url"]: [],
             c["geomagnetic"]["kp"]["url"]: [],
+            c["sunspots"]["url"]: [],
             c["protons"]["ge10mev"]["url"]: [],
             c["solar_wind"]["plasma_url"]: [["time_tag", "density", "speed", "temperature"]],
             c["solar_wind"]["mag_url"]: [["time_tag", "bx_gsm", "by_gsm", "bz_gsm", "lon_gsm", "lat_gsm", "bt"]],
@@ -232,6 +233,100 @@ class ProtonsAndWind(Base):
         new = self.cycle()
         self.assertEqual(len(new), 1)
         self.assertIn("Bt", new[0].title)
+
+
+class Sunspots(Base):
+    """Fixtures mirror NOAA's real solar_regions.json records for AR4551 (S15E07, BGD on 14 Oct 2026)."""
+
+    def rec(self, region=4551, days_ago=1, loc="S15E07", mag="BGD", lon=None, base=NOW, **kw):
+        d = (base - timedelta(days=days_ago)).strftime("%Y-%m-%d")
+        r = {"observed_date": d, "region": region, "location": loc, "mag_class": mag, "spot_class": "Eki",
+             "area": 500, "number_spots": 23, "m_flare_probability": 25, "x_flare_probability": 10}
+        if lon is not None:
+            r["longitude"] = lon
+        r.update(kw)
+        return r
+
+    def feed(self, *records):
+        self.f.data[self.cfg["sunspots"]["url"]] = list(records)
+
+    def test_ar4551_alerts(self):
+        # real history: B, BG, B, BG on earlier days, BGD on the latest day
+        self.feed(self.rec(days_ago=5, loc="S13E71", mag="B"), self.rec(days_ago=4, loc="S14E61", mag="B"),
+                  self.rec(days_ago=3, loc="S15E47", mag="BG"), self.rec(days_ago=2, loc="S15E21", mag="BG"),
+                  self.rec(days_ago=1))
+        new = self.cycle()
+        self.assertEqual(len(new), 1, self.titles(new))
+        t = new[0].title
+        for part in ("AR4551", "beta-gamma-delta", "S15E07", "Earth-facing"):
+            self.assertIn(part, t)
+        self.assertIn("M-class 25%", new[0].description)
+        self.assertEqual(self.cycle(), [])                      # not repeated on the next poll
+
+    def test_older_bgd_record_superseded(self):
+        self.feed(self.rec(days_ago=2, mag="BGD"), self.rec(days_ago=1, mag="BG"))   # no longer BGD
+        self.assertEqual(self.cycle(), [])
+
+    def test_other_classes_ignored_by_default_but_configurable(self):
+        self.feed(self.rec(mag="BD", region=1), self.rec(mag="GD", region=2), self.rec(mag="BG", region=3))
+        self.assertEqual(self.cycle(), [])
+        self.cfg["sunspots"]["dangerous_classes"] = ["bgd", "GD", "BD"]       # case-insensitive
+        self.assertEqual(len(self.cycle()), 2)
+
+    def test_earth_facing_boundary_and_sign(self):
+        self.feed(self.rec(region=1, loc="S15E60"), self.rec(region=2, loc="N10W60"),
+                  self.rec(region=3, loc="S15E61"), self.rec(region=4, loc="N09W75"))
+        new = self.cycle()
+        self.assertEqual(sorted(a.title.split(":")[0] for a in new),
+                         ["Dangerous sunspot AR1", "Dangerous sunspot AR2"])
+        self.cfg["sunspots"]["max_longitude"] = 80                              # admin widens the cone
+        self.assertEqual(len(self.cycle()), 2)                                  # AR3 + AR4 now qualify
+
+    def test_location_fallback_to_longitude_field(self):
+        self.feed(self.rec(region=1, loc="", lon=7), self.rec(region=2, loc="", lon=-67),
+                  self.rec(region=3, loc="", lon=None))
+        new = self.cycle()
+        self.assertEqual(len(new), 1)
+        self.assertIn("AR1", new[0].title)
+
+    def test_stale_record_ignored(self):
+        self.feed(self.rec(days_ago=6))
+        self.assertEqual(self.cycle(), [])
+
+    def test_no_repeat_next_day_then_realert_after_clearing_and_cooldown(self):
+        self.feed(self.rec(days_ago=1))
+        self.assertEqual(len(self.cycle(NOW)), 1)
+        day2 = NOW + timedelta(days=1)
+        self.feed(self.rec(days_ago=1), self.rec(days_ago=0, base=day2))        # still BGD today
+        self.assertEqual(self.cycle(day2), [])                                  # same episode
+        day3 = NOW + timedelta(days=2)
+        self.feed(self.rec(days_ago=0, mag="BG", base=day3))                    # complexity dropped
+        self.assertEqual(self.cycle(day3), [])
+        early = NOW + timedelta(days=2, hours=1)
+        self.feed(self.rec(days_ago=0, base=early))                             # BGD again, but see below
+        self.cfg["sunspots"]["cooldown_minutes"] = 10 * 24 * 60                 # long cooldown blocks re-alert
+        self.assertEqual(self.cycle(early), [])
+        self.cfg["sunspots"]["cooldown_minutes"] = 1440
+        self.feed(self.rec(days_ago=0, mag="BG", base=early))
+        self.cycle(early)                                                       # clears again
+        day4 = NOW + timedelta(days=3)
+        self.feed(self.rec(days_ago=0, base=day4))                              # BGD again, cooldown elapsed
+        self.assertEqual(len(self.cycle(day4)), 1)
+
+    def test_disabled_and_failed_source(self):
+        self.feed(self.rec())
+        self.cfg["sunspots"]["enabled"] = False
+        self.assertEqual(self.cycle(), [])
+        self.cfg["sunspots"]["enabled"] = True
+        self.f.data[self.cfg["sunspots"]["url"]] = OSError("down")
+        self.assertEqual(self.cycle(), [])                                      # no crash, feed still written
+
+    def test_bad_sunspot_config_rejected(self):
+        for bad in ({"dangerous_classes": []}, {"dangerous_classes": "BGD"}, {"max_longitude": 200}):
+            cfg = sa.load_config(os.path.join(HERE, "test_config.toml"))
+            cfg["sunspots"].update(bad)
+            with self.assertRaises(sa.ConfigError, msg=str(bad)):
+                sa.validate_config(cfg)
 
 
 class Feed(Base):

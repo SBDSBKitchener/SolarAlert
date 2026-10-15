@@ -74,6 +74,7 @@ Every rule has `enabled`; threshold rules also have `threshold`, `direction`
 | Flare class | `[flares] min_class` (flares are alerted at >= this class) |
 | Earth-facing limits | `full_facing_max_longitude`, `partial_facing_max_longitude` (degrees from disk centre) |
 | Filament eruption | `[filaments]` (same facing settings) |
+| Dangerous sunspot | `[sunspots] dangerous_classes` (default `["BGD"]`; add `"GD"`, `"BD"` if wanted), `max_longitude` (Earth-facing cone, degrees from disk centre, default 60) |
 | Coronal hole stream | `[geomagnetic.coronal_hole] include_regex / exclude_regex` |
 | Forecast storm | `[geomagnetic.storm_forecast] min_g_level` |
 | Actual Kp | `[geomagnetic.kp] min_kp` (>=) |
@@ -92,6 +93,7 @@ Every rule has `enabled`; threshold rules also have `threshold`, `direction`
 | Rule | Source |
 |---|---|
 | Flares, filament eruptions | HEK `FL` / `FE` events (position from `hgs_x`/`hgs_y`) |
+| Dangerous sunspots | NOAA `solar_regions.json` (Solar Region Summary; latest record per region) |
 | Coronal hole stream | Keyword match on SWPC forecast discussion text |
 | G-storm forecast | SWPC `alerts.json` (WATCH "Category Gx Predicted", WARNING "K-index of N expected") |
 | Kp | `noaa-planetary-k-index.json` |
@@ -104,6 +106,7 @@ Every rule has `enabled`; threshold rules also have `threshold`, `direction`
 * **Earth-facing is an approximation** from reported longitude. Events with no position yet are ignored by
   default (`unknown_location = "ignore"`); the position usually appears in HEK within minutes and is
   caught on a later poll.
+* **Sunspot alerts lag by up to a day.** NOAA's region summary is one record per region per day, so a region that turns BGD is reported on the next daily update. A region alerts once per episode (again only after it stops qualifying and `cooldown_minutes` has passed), and it stops qualifying when it rotates past `max_longitude`.
 * **Filament eruptions** depend on HEK having detections (automated + human). There is no official NOAA
   "filament eruption" alert.
 * **Coronal hole detection is a text heuristic** and may need regex tuning after you see real output.
