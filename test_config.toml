@@ -71,10 +71,14 @@ link = "https://www.swpc.noaa.gov/products/solar-region-summary"
 [geomagnetic.coronal_hole]
 enabled = true
 url = "https://services.swpc.noaa.gov/text/discussion.txt"
-# A sentence of the SWPC forecast discussion triggers an alert if it matches
-# include_regex and does not match exclude_regex (case-insensitive).
-include_regex = "(coronal hole|CH HSS|high speed stream).*(expect|forecast|anticipat|arriv|impact|influence|enhanc)"
-exclude_regex = "\\b(no|not|neither|nor)\\b.{0,40}(coronal hole|CH HSS|high speed stream)|(coronal hole|CH HSS|high speed stream).{0,60}\\b(not expected|no longer)\\b"
+# A sentence of the SWPC forecast discussion triggers an alert only if it names a stream AND
+# announces an arrival or enhancement (include_regex) and is not about a stream that is already
+# under way or fading (exclude_regex: persist, wane, taper, return to ..., reflected, negations).
+# Case-insensitive. Once alerted, the same stream is not announced again until a discussion
+# appears with no arrival wording (episode ends) and cooldown_minutes has passed.
+# Each run saves the stream sentences it saw, and why, to health.json on the state branch.
+include_regex = '(?:coronal holes?|CH HSS|high[- ]speed streams?|\bHSS\b).*(?:arriv|onset|\bbegin|rotat|(?:expected|anticipated|forecast|predicted|likely) to (?:impact|influence|affect|enhance|increase|become))|(?:arriv|onset|\bbegin|rotat|(?:expected|anticipated|forecast|predicted|likely) to (?:impact|influence|affect|enhance|increase|become)).*(?:coronal holes?|CH HSS|high[- ]speed streams?|\bHSS\b)|(?:enhanced|elevated|disturbed|increased|active|unsettled|stormy)\b.{0,80}\b(?:expected|anticipated|forecast|likely)\b.*(?:coronal holes?|CH HSS|high[- ]speed streams?|\bHSS\b)'
+exclude_regex = 'persist|continu|remain|\btaper|\bwan(?:e|es|ed|ing)\b|subsid|diminish|declin|decreas|weaken|\bfad(?:e|es|ed|ing)\b|\beas(?:e|es|ed|ing)\b|returns? to|no longer|not (?:expected|anticipated|forecast)|reflected|\b(?:no|neither|nor)\b.{0,40}(?:coronal holes?|CH HSS|high[- ]speed streams?|\bHSS\b)'
 cooldown_minutes = 720
 
 [geomagnetic.storm_forecast]

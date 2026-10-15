@@ -97,17 +97,59 @@ def facing(lon, full_max, partial_max):
     return None
 
 
+def summarize(data):
+    """Small description of a fetched JSON document, for health.json."""
+    if isinstance(data, dict):
+        rows = data.get("result") if isinstance(data.get("result"), list) else [data]
+        cols = None
+    else:
+        rows = table_rows(data)
+        cols = data[0] if data and isinstance(data[0], list) else None
+    rows = [r for r in rows if isinstance(r, dict)]
+    out = {"rows": len(rows)}
+    if cols:
+        out["columns"] = cols
+    times = []
+    for r in rows:
+        t = parse_time(first_present(r, "time_tag", "observed_date", "event_starttime", "issue_datetime"))
+        if t:
+            times.append((t, r))
+    if times:
+        out["oldest"], out["newest"] = iso(min(times, key=lambda x: x[0])[0]), iso(max(times, key=lambda x: x[0])[0])
+        out["newest_row"] = dict(list(max(times, key=lambda x: x[0])[1].items())[:14])
+    energies = sorted({str(r["energy"]) for r in rows if "energy" in r})
+    if energies:
+        out["energies"] = energies
+    return out
+
+
 class Fetcher:
     def __init__(self, user_agent, timeout):
-        self.ua, self.timeout = user_agent, timeout
+        self.ua, self.timeout, self.log = user_agent, timeout, []
 
     def _get(self, url):
-        req = urllib.request.Request(url, headers={"User-Agent": self.ua})
-        with urllib.request.urlopen(req, timeout=self.timeout) as r:
-            return r.read().decode("utf-8", "replace")
+        entry = {"url": url}
+        self.log.append(entry)
+        t0 = time.time()
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": self.ua})
+            with urllib.request.urlopen(req, timeout=self.timeout) as r:
+                body = r.read().decode("utf-8", "replace")
+        except Exception as e:
+            entry.update(ok=False, error=f"{type(e).__name__}: {e}")
+            raise
+        entry.update(ok=True, bytes=len(body), seconds=round(time.time() - t0, 2))
+        return body
 
     def json(self, url):
-        return json.loads(self._get(url))
+        body = self._get(url)
+        try:
+            data = json.loads(body)
+            self.log[-1].update(summarize(data))
+        except Exception as e:
+            self.log[-1].update(ok=False, error=f"{type(e).__name__}: {e}")
+            raise
+        return data
 
     def text(self, url):
         return self._get(url)
@@ -287,6 +329,9 @@ class Store:
 # Each check returns (alerts, conditions). `conditions` maps group -> currently breached?
 # so that continuous conditions alert once per episode instead of every poll.
 
+SPIKE_GAP = timedelta(minutes=30)     # breaching samples further apart than this are separate spikes
+
+
 def threshold_alert(rule, rows, field, now, group, category, label, unit, link):
     cutoff = now - timedelta(minutes=rule["lookback_minutes"])
     samples = []
@@ -297,18 +342,29 @@ def threshold_alert(rule, rows, field, now, group, category, label, unit, link):
     if not samples:
         return None, None                                  # no data: leave state unchanged
     above, thr = rule["direction"] == "above", rule["threshold"]
-    hits = [s for s in samples if (s[1] > thr if above else s[1] < thr)]
+    hits = sorted(s for s in samples if (s[1] > thr if above else s[1] < thr))
     if not hits:
         return None, False
-    t, v = max(hits, key=lambda s: s[1]) if above else min(hits, key=lambda s: s[1])
+    # Group the breaching samples into spikes separated by quiet gaps and report the MOST RECENT
+    # spike, keyed by when it started. A bigger earlier spike therefore cannot hide a later one,
+    # and the same spike is not reported twice however many runs see it.
+    spike = [hits[-1]]
+    for h in reversed(hits[:-1]):
+        if spike[0][0] - h[0] > SPIKE_GAP:
+            break
+        spike.insert(0, h)
+    start = spike[0][0]
+    t, v = max(spike, key=lambda x: x[1]) if above else min(spike, key=lambda x: x[1])
     latest = max(samples)[1]
+    still = latest > thr if above else latest < thr       # the episode stays open only while still beyond
     op = ">" if above else "<"
     return Alert(
-        key=f"{group}:{iso(t)}", category=category,
+        key=f"{group}:{iso(start)}", category=category,
         title=f"{label}: {v:g} {unit} (threshold {op} {thr:g})",
-        description=f"{label} reached {v:g} {unit} at {t:%Y-%m-%d %H:%M} UTC, beyond the configured "
-                    f"threshold ({op} {thr:g} {unit}). Latest reading: {latest:g} {unit}.",
-        link=link, event_time=t, group=group, cooldown_minutes=rule["cooldown_minutes"]), True
+        description=f"{label} reached {v:g} {unit} at {t:%Y-%m-%d %H:%M} UTC (spike began "
+                    f"{start:%H:%M}), beyond the configured threshold ({op} {thr:g} {unit}). "
+                    f"Latest reading: {latest:g} {unit}.",
+        link=link, event_time=t, group=group, cooldown_minutes=rule["cooldown_minutes"]), still
 
 
 def hek_events(cfg, fetch, event_type, hours, now):
@@ -374,6 +430,9 @@ def check_filaments(cfg, fetch, now):
     return alerts, {}
 
 
+_NOTES = {}      # per-cycle debugging detail written to health.json
+
+
 def check_coronal_hole(cfg, fetch, now):
     c = cfg["geomagnetic"]["coronal_hole"]
     if not c["enabled"]:
@@ -383,16 +442,28 @@ def check_coronal_hole(cfg, fetch, now):
     issued = datetime.strptime(m.group(1), "%Y %b %d %H%M").replace(tzinfo=timezone.utc) if m else now
     inc, exc = re.compile(c["include_regex"], re.I), re.compile(c["exclude_regex"], re.I)
     sentences = re.split(r"(?<=[.!?])\s+", " ".join(text.split()))
-    hits = [s for s in sentences if inc.search(s) and not exc.search(s)]
+    stream = re.compile(r"coronal hole|CH HSS|high[- ]speed stream|\bHSS\b", re.I)
+    hits, notes = [], []
+    for sent in sentences:
+        if not stream.search(sent):
+            continue
+        ok = bool(inc.search(sent)) and not exc.search(sent)
+        notes.append({"alert": ok, "text": sent[:300]})
+        if ok:
+            hits.append(sent)
+    _NOTES["coronal_hole"] = {"issued": iso(issued), "stream_sentences": notes[:12]}
+    # The episode stays open while a discussion still announces an arrival, so the same
+    # stream is not re-announced every 12 hours.
+    conds = {"coronal_hole": bool(hits)}
     if not hits:
-        return [], {}
+        return [], conds
     return [Alert(
         key=f"coronal_hole:{iso(issued)}", category="Geomagnetic forecast",
         title="Coronal hole stream forecast to impact Earth",
         description="SWPC forecast discussion (issued %s UTC): %s" % (issued.strftime("%Y-%m-%d %H:%M"),
                                                                     " ".join(hits[:3])),
         link="https://www.swpc.noaa.gov/products/forecast-discussion", event_time=issued,
-        group="coronal_hole", cooldown_minutes=c["cooldown_minutes"])], {}
+        group="coronal_hole", cooldown_minutes=c["cooldown_minutes"])], conds
 
 
 WATCH_RE = re.compile(r"Geomagnetic Storm Category G(\d)\s+Predicted", re.I)
@@ -614,14 +685,17 @@ def write_atomic(path, content):
 
 def run_cycle(cfg, fetch, store, now=None):
     now = now or datetime.now(timezone.utc)
-    alerts, conds = [], {}
+    alerts, conds, results = [], {}, []
+    _NOTES.clear()
     for check in CHECKS:
         try:
             a, c = check(cfg, fetch, now)
             alerts += a
             conds.update(c)
+            results.append({"check": check.__name__, "ok": True, "candidates": len(a)})
         except Exception as e:
             log.warning("%s failed: %s", check.__name__, e)
+            results.append({"check": check.__name__, "ok": False, "error": f"{type(e).__name__}: {e}"})
     new = process(store, alerts, conds, now)
     store.prune(cfg["runtime"]["retention_days"], now)
     store.commit()
@@ -629,6 +703,10 @@ def run_cycle(cfg, fetch, store, now=None):
     write_atomic(cfg["feed"]["output_path"], render_feed(cfg, items))
     for a in new:
         log.info("NEW ALERT: %s", a.title)
+    health = {"generated": iso(now), "checks": results, "new_alerts": [a.title for a in new],
+              "sources": getattr(fetch, "log", []), "notes": dict(_NOTES)}
+    health_path = os.path.join(os.path.dirname(os.path.abspath(cfg["runtime"]["database"])), "health.json")
+    write_atomic(health_path, json.dumps(health, indent=1, sort_keys=True, default=str) + "\n")
     return new
 
 

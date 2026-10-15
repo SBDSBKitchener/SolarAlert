@@ -35,7 +35,8 @@ class Base(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.cfg = sa.load_config(os.path.join(HERE, "test_config.toml"))   # pinned, independent of admin edits
         self.cfg["feed"]["output_path"] = os.path.join(self.tmp.name, "site", "feed.xml")   # dirs created on demand
-        self.store = sa.Store(os.path.join(self.tmp.name, "state", "t.db"))
+        self.cfg["runtime"]["database"] = os.path.join(self.tmp.name, "state", "t.db")   # health.json lands beside it
+        self.store = sa.Store(self.cfg["runtime"]["database"])
         c = self.cfg
         self.f = Fake(c)
         # every source empty by default
@@ -327,6 +328,137 @@ class Sunspots(Base):
             cfg["sunspots"].update(bad)
             with self.assertRaises(sa.ConfigError, msg=str(bad)):
                 sa.validate_config(cfg)
+
+
+# Real sentences from SWPC forecast discussions issued 13-15 Oct 2026. All describe a stream that was
+# already under way and fading; none of them should produce a "stream forecast to impact Earth" alert.
+REAL_ONGOING = {
+    "13 Oct 1230": "Solar wind parameters reflected likely negative polarity CH HSS influences. By 15 Oct, quiet "
+                   "to unsettled levels are expected to return as CH HSS/CME influence tapers off.",
+    "14 Oct 0030": "The greater than 2 MeV electron flux is expected to reach high levels on 14-15 Oct following "
+                   "negative polarity coronal hole high-speed stream (-CH HSS) influences, before returning to "
+                   "normal to moderate levels on 16 Oct. Solar wind parameters reflected negative polarity coronal "
+                   "hole high-speed stream (-CH HSS) influences, along with potential flanking CME influences early "
+                   "in the period. Negative polarity CH HSS effects are anticipated to persist through 14 Oct "
+                   "before subsiding early on 15 Oct.",
+    "14 Oct 1230": "The greater than 2 MeV electron flux is expected to reach high levels on 15 and 16 Oct due to "
+                   "negative polarity CH HSS influences. Negative polarity CH HSS effects are anticipated to "
+                   "persist through 16 Oct, although, slowing diminishing over the course of 15 and 16 Oct.",
+    "15 Oct 1230": "Solar wind parameters began elevated under persistent HSS activity. Solar wind conditions are "
+                   "anticipated to return to near-background/ambient levels by 17 Oct as influences from a negative "
+                   "polarity CH HSS slowly wane. Unsettled conditions are expected to persist through 16 Oct, as "
+                   "influences from the negative polarity CH HSS wane.",
+}
+ARRIVALS = [
+    "A recurrent positive polarity CH HSS is expected to arrive on 18 Oct.",
+    "Active conditions are likely on 19-20 Oct due to a positive polarity coronal hole high speed stream.",
+    "Solar wind speeds are expected to increase to near 600 km/s late on 17 Oct as a positive polarity CH HSS "
+    "rotates into a geoeffective position.",
+]
+
+
+class CoronalHole(Base):
+    def put(self, issued, body):
+        self.f.data[self.cfg["geomagnetic"]["coronal_hole"]["url"]] = f":Issued: {issued} UTC\n\n{body}\n"
+
+    def direct(self, body, issued="2026 Oct 13 1230"):
+        self.put(issued, body)
+        return sa.check_coronal_hole(self.cfg, self.f, NOW)
+
+    def test_real_ongoing_discussions_do_not_alert(self):
+        for when, body in REAL_ONGOING.items():
+            alerts, conds = self.direct(body)
+            self.assertEqual(alerts, [], when)
+            self.assertEqual(conds, {"coronal_hole": False}, when)
+
+    def test_arrival_wording_alerts(self):
+        for body in ARRIVALS:
+            alerts, conds = self.direct("Solar Wind\n" + body)
+            self.assertEqual(len(alerts), 1, body)
+            self.assertTrue(conds["coronal_hole"])
+
+    def test_new_stream_alerts_even_while_old_one_wanes(self):
+        old = REAL_ONGOING["15 Oct 1230"]
+        alerts, _ = self.direct(old + " " + ARRIVALS[0])
+        self.assertEqual(len(alerts), 1)
+        self.assertIn("expected to arrive on 18 Oct", alerts[0].description)
+        self.assertNotIn("wane", alerts[0].description)
+
+    def test_episode_alerts_once_and_rearms(self):
+        def poll(issued, body, when):
+            self.put(issued, body)
+            return self.cycle(when)
+        self.assertEqual(len(poll("2026 Oct 16 0030", ARRIVALS[0], NOW)), 1)
+        # 12 h later the discussion repeats the arrival: same stream, no new alert
+        self.assertEqual(poll("2026 Oct 16 1230", ARRIVALS[0], NOW + timedelta(hours=12)), [])
+        # stream arrives and is fading: the episode closes
+        self.assertEqual(poll("2026 Oct 18 0030", REAL_ONGOING["15 Oct 1230"], NOW + timedelta(days=2)), [])
+        # a different stream is announced later: alerts again
+        self.assertEqual(len(poll("2026 Oct 24 0030", ARRIVALS[1], NOW + timedelta(days=8))), 1)
+
+    def test_debug_notes_explain_decisions(self):
+        self.put("2026 Oct 13 1230", REAL_ONGOING["13 Oct 1230"] + " " + ARRIVALS[0])
+        self.cycle()
+        notes = sa._NOTES["coronal_hole"]["stream_sentences"]
+        self.assertEqual([n["alert"] for n in notes], [False, False, True])
+
+
+class LongLookback(ProtonsAndWind):
+    """The workflow may run only every few hours, so spikes between runs must still be found, once."""
+
+    def rows(self, spec):
+        hdr = ["time_tag", "density", "speed", "temperature"]
+        return [hdr] + [[ts(m), "3", str(v), "100000"] for m, v in spec]
+
+    def setUp(self):
+        super().setUp()
+        self.cfg["solar_wind"]["speed"]["lookback_minutes"] = 480
+        self.url = self.cfg["solar_wind"]["plasma_url"]
+
+    def test_spike_between_runs_is_found_once(self):
+        self.f.data[self.url] = self.rows([(300, 500), (200, 850), (199, 870), (198, 840), (100, 600), (5, 500)])
+        new = self.cycle()
+        self.assertEqual(len(new), 1)
+        self.assertIn("870", new[0].title)
+        self.assertEqual(self.cycle(NOW + timedelta(hours=2)), [])      # same data, later run: no repeat
+
+    def test_bigger_earlier_spike_does_not_hide_a_later_one(self):
+        self.f.data[self.url] = self.rows([(400, 950), (300, 500), (90, 820), (5, 500)])
+        new = self.cycle()
+        self.assertEqual(len(new), 1)
+        self.assertIn("820", new[0].title)                               # the most recent spike
+
+    def test_episode_stays_open_only_while_beyond_threshold(self):
+        self.f.data[self.url] = self.rows([(200, 850), (5, 880)])         # still high now
+        self.assertEqual(len(self.cycle()), 1)
+        self.f.data[self.url] = self.rows([(200, 850), (5, 880), (2, 890)])
+        self.assertEqual(self.cycle(NOW + timedelta(minutes=3)), [])     # same episode
+
+
+class Health(Base):
+    def test_health_report_written(self):
+        import json as _json
+        self.cycle()
+        path = os.path.join(self.tmp.name, "state", "health.json")
+        h = _json.load(open(path))
+        self.assertEqual(h["generated"], sa.iso(NOW))
+        self.assertTrue(all(c["ok"] for c in h["checks"]), h["checks"])
+        self.assertEqual({c["check"] for c in h["checks"]}, {f.__name__ for f in sa.CHECKS})
+
+    def test_failed_check_is_reported_not_fatal(self):
+        import json as _json
+        self.f.data[self.cfg["sunspots"]["url"]] = OSError("down")
+        self.cycle()
+        h = _json.load(open(os.path.join(self.tmp.name, "state", "health.json")))
+        bad = [c for c in h["checks"] if not c["ok"]]
+        self.assertEqual([c["check"] for c in bad], ["check_sunspots"])
+
+    def test_summarize_table_and_dict(self):
+        out = sa.summarize([["time_tag", "bt"], ["2026-10-15 10:00:00", "5"], ["2026-10-15 11:00:00", "6"]])
+        self.assertEqual((out["rows"], out["oldest"], out["newest"]), (2, "2026-10-15T10:00:00Z", "2026-10-15T11:00:00Z"))
+        self.assertEqual(out["columns"], ["time_tag", "bt"])
+        self.assertEqual(sa.summarize({"result": [{"event_starttime": "2026-10-15T10:00:00"}]})["rows"], 1)
+        self.assertEqual(sa.summarize([{"time_tag": "2026-10-15T10:00:00Z", "energy": ">=10 MeV"}])["energies"], [">=10 MeV"])
 
 
 class Feed(Base):

@@ -51,7 +51,6 @@ jobs:
           if git fetch --depth=1 origin state 2>/dev/null; then
             git show FETCH_HEAD:solar_alerts.db > state/solar_alerts.db || rm -f state/solar_alerts.db
             git show FETCH_HEAD:feed.xml > previous-feed.xml || rm -f previous-feed.xml
-            cp state/solar_alerts.db previous.db 2>/dev/null || true
             echo "Restored previous state."
           else
             echo "No state branch yet - first run."
@@ -71,27 +70,17 @@ jobs:
       - name: Add landing page
         run: cp site_static/* site/
 
-      - name: Decide whether to publish and save state
+      - name: Decide whether to publish
         id: diff
         run: |
           publish=false
-          save=false
           # Publish when the feed changed, or when code/config/landing page was pushed.
           if [ ! -f previous-feed.xml ] || ! cmp -s previous-feed.xml site/feed.xml \
              || [ "${{ github.event_name }}" = "push" ]; then
             publish=true
           fi
-          # Save state when the database content or the feed changed.
-          dump_hash() { python3 -c 'import sqlite3,sys,hashlib; c=sqlite3.connect(sys.argv[1]); print(hashlib.sha256("\n".join(c.iterdump()).encode()).hexdigest())' "$1"; }
-          new_hash=$(dump_hash state/solar_alerts.db)
-          old_hash=$( [ -s previous.db ] && dump_hash previous.db || echo none )
-          if [ "$new_hash" != "$old_hash" ] || [ ! -f previous-feed.xml ] \
-             || ! cmp -s previous-feed.xml site/feed.xml; then
-            save=true
-          fi
           echo "publish=$publish" >> "$GITHUB_OUTPUT"
-          echo "save=$save" >> "$GITHUB_OUTPUT"
-          echo "publish=$publish save=$save"
+          echo "publish=$publish"
 
       # Publish first; state is saved only after a successful deploy, so a failed
       # deploy means the same alerts are simply detected again on the next run.
@@ -106,11 +95,11 @@ jobs:
         if: steps.diff.outputs.publish == 'true'
         uses: actions/deploy-pages@v4
 
-      - name: Save state to the state branch
-        if: steps.diff.outputs.save == 'true'
+      # Runs every time (not only when something changed) so health.json is always fresh.
+      - name: Save state and health report to the state branch
         run: |
           rm -rf publish && mkdir publish
-          cp state/solar_alerts.db site/feed.xml publish/
+          cp state/solar_alerts.db state/health.json site/feed.xml publish/
           cd publish
           git init -q -b state
           git config user.name "github-actions[bot]"

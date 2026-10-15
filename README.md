@@ -53,15 +53,40 @@ How it works:
 
 Things to know:
 
-* GitHub's scheduler is best effort: runs can be 10-30+ minutes late under load, and a delayed run
-  still catches events because every rule looks back over a window (30 minutes for wind/protons,
-  6 hours for flares and Kp). For tighter timing, trigger the workflow from an external cron service
-  through the `workflow_dispatch` REST endpoint.
+* **GitHub's built-in scheduler is slow.** Measured on this repo, the "every 5 minutes" schedule actually
+  runs every 2-6 hours (average about 4). To make up for it, every rule looks back far enough to cover the gap
+  (8 hours for solar wind and protons, 12 for flares and Kp, 24 for filaments), and a spike is reported once, when
+  next seen. Alerts can still be hours late. For near-real-time alerts use the external trigger below.
 * Public-repo scheduled workflows are disabled after 60 days without repository activity. The workflow adds
   an empty "keepalive" commit to `main` after 45 days; this is best effort (it fails under branch protection
   and I could not verify that GitHub counts bot commits as activity). If the schedule ever stops, re-enable it
   in the Actions tab, or push any commit.
 * The repo, the `state` branch and the feed are public.
+
+## External trigger (recommended: runs the workflow every 5 minutes)
+
+A free timer service can start the workflow on time instead of waiting for GitHub's scheduler. Both schedules
+can stay on: the workflow never runs two at once, and duplicates are ignored.
+
+1. GitHub > Settings > Developer settings > Personal access tokens > **Fine-grained tokens** > Generate new token.
+   Repository access: **only this repository**. Permissions: **Actions: Read and write** (nothing else).
+   Choose an expiry (e.g. 1 year) and note the date; the trigger stops working when it expires.
+2. On a service such as [cron-job.org](https://cron-job.org) (free) create a job that runs every 5 minutes:
+   * URL: `https://api.github.com/repos/OWNER/REPO/actions/workflows/solar-alerts.yml/dispatches`
+   * Method: `POST`, body: `{"ref":"main"}`
+   * Headers: `Authorization: Bearer YOUR_TOKEN`, `Accept: application/vnd.github+json`,
+     `X-GitHub-Api-Version: 2022-11-28`, `Content-Type: application/json`
+   * A successful call returns `204`.
+3. Keep the token secret: it lives only in that service, never in this repository.
+
+Each dispatch creates one workflow run (about 30 seconds, free for public repositories).
+
+## Health report
+
+Every run saves `health.json` to the `state` branch (not the public website). It lists, for each data source,
+whether it loaded, its size, row count, oldest and newest timestamp and a sample row, plus the result of each
+check and the sentences the coronal hole rule considered and why. If an alert never appears, look here first:
+`https://github.com/OWNER/REPO/blob/state/health.json`.
 
 ## Administering thresholds
 
@@ -75,7 +100,7 @@ Every rule has `enabled`; threshold rules also have `threshold`, `direction`
 | Earth-facing limits | `full_facing_max_longitude`, `partial_facing_max_longitude` (degrees from disk centre) |
 | Filament eruption | `[filaments]` (same facing settings) |
 | Dangerous sunspot | `[sunspots] dangerous_classes` (default `["BGD"]`; add `"GD"`, `"BD"` if wanted), `max_longitude` (Earth-facing cone, degrees from disk centre, default 60) |
-| Coronal hole stream | `[geomagnetic.coronal_hole] include_regex / exclude_regex` |
+| Coronal hole stream | `[geomagnetic.coronal_hole] include_regex / exclude_regex` (arrival wording only; ongoing or fading streams are excluded) |
 | Forecast storm | `[geomagnetic.storm_forecast] min_g_level` |
 | Actual Kp | `[geomagnetic.kp] min_kp` (>=) |
 | Protons | `[protons.ge10mev]` (100 pfu), `[protons.ge100mev]` (1 pfu) |
@@ -98,7 +123,7 @@ Every rule has `enabled`; threshold rules also have `threshold`, `direction`
 | G-storm forecast | SWPC `alerts.json` (WATCH "Category Gx Predicted", WARNING "K-index of N expected") |
 | Kp | `noaa-planetary-k-index.json` |
 | Protons | GOES `integral-protons-1-day.json` |
-| Solar wind | DSCOVR/ACE `plasma-5-minute.json`, `mag-5-minute.json` |
+| Solar wind | SWPC `plasma-1-day.json`, `mag-1-day.json` (the `-5-minute` files hold only one reading) |
 
 * **Written without live network access.** The logic is tested against fake data in the same formats;
   before going public, run one cycle with `-v` against the real endpoints and compare a few items with
@@ -109,5 +134,5 @@ Every rule has `enabled`; threshold rules also have `threshold`, `direction`
 * **Sunspot alerts lag by up to a day.** NOAA's region summary is one record per region per day, so a region that turns BGD is reported on the next daily update. A region alerts once per episode (again only after it stops qualifying and `cooldown_minutes` has passed), and it stops qualifying when it rotates past `max_longitude`.
 * **Filament eruptions** depend on HEK having detections (automated + human). There is no official NOAA
   "filament eruption" alert.
-* **Coronal hole detection is a text heuristic** and may need regex tuning after you see real output.
+* **Coronal hole detection is a text heuristic.** It alerts only on arrival or enhancement wording and ignores streams that are already under way or fading. It was tuned on SWPC text from 13-15 Oct 2026; if it misses or over-reports, the sentences it saw are in `health.json` so the two regexes can be adjusted.
 * HEK/SWPC are public services: keep polling at 5 minutes or slower and set a real contact in `user_agent`.

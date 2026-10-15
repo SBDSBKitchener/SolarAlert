@@ -31,7 +31,7 @@ url = "https://www.lmsal.com/hek/her"
 [flares]
 enabled = true
 min_class = "M5.0"                    # alert on flares at or above this GOES class
-lookback_hours = 6
+lookback_hours = 12
 full_facing_max_longitude = 60
 partial_facing_max_longitude = 90
 unknown_location = "ignore"
@@ -39,7 +39,7 @@ link = "https://www.swpc.noaa.gov/products/goes-x-ray-flux"
 
 [filaments]
 enabled = true
-lookback_hours = 12
+lookback_hours = 24
 full_facing_max_longitude = 60
 partial_facing_max_longitude = 90
 unknown_location = "ignore"
@@ -70,10 +70,14 @@ link = "https://www.swpc.noaa.gov/products/solar-region-summary"
 [geomagnetic.coronal_hole]
 enabled = true
 url = "https://services.swpc.noaa.gov/text/discussion.txt"
-# A sentence of the SWPC forecast discussion triggers an alert if it matches
-# include_regex and does not match exclude_regex (case-insensitive).
-include_regex = "(coronal hole|CH HSS|high speed stream).*(expect|forecast|anticipat|arriv|impact|influence|enhanc)"
-exclude_regex = "\\b(no|not|neither|nor)\\b.{0,40}(coronal hole|CH HSS|high speed stream)|(coronal hole|CH HSS|high speed stream).{0,60}\\b(not expected|no longer)\\b"
+# A sentence of the SWPC forecast discussion triggers an alert only if it names a stream AND
+# announces an arrival or enhancement (include_regex) and is not about a stream that is already
+# under way or fading (exclude_regex: persist, wane, taper, return to ..., reflected, negations).
+# Case-insensitive. Once alerted, the same stream is not announced again until a discussion
+# appears with no arrival wording (episode ends) and cooldown_minutes has passed.
+# Each run saves the stream sentences it saw, and why, to health.json on the state branch.
+include_regex = '(?:coronal holes?|CH HSS|high[- ]speed streams?|\bHSS\b).*(?:arriv|onset|\bbegin|rotat|(?:expected|anticipated|forecast|predicted|likely) to (?:impact|influence|affect|enhance|increase|become))|(?:arriv|onset|\bbegin|rotat|(?:expected|anticipated|forecast|predicted|likely) to (?:impact|influence|affect|enhance|increase|become)).*(?:coronal holes?|CH HSS|high[- ]speed streams?|\bHSS\b)|(?:enhanced|elevated|disturbed|increased|active|unsettled|stormy)\b.{0,80}\b(?:expected|anticipated|forecast|likely)\b.*(?:coronal holes?|CH HSS|high[- ]speed streams?|\bHSS\b)'
+exclude_regex = 'persist|continu|remain|\btaper|\bwan(?:e|es|ed|ing)\b|subsid|diminish|declin|decreas|weaken|\bfad(?:e|es|ed|ing)\b|\beas(?:e|es|ed|ing)\b|returns? to|no longer|not (?:expected|anticipated|forecast)|reflected|\b(?:no|neither|nor)\b.{0,40}(?:coronal holes?|CH HSS|high[- ]speed streams?|\bHSS\b)'
 cooldown_minutes = 720
 
 [geomagnetic.storm_forecast]
@@ -87,7 +91,7 @@ cooldown_minutes = 360
 enabled = true
 url = "https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json"
 min_kp = 5                          # alert when Kp >= this
-lookback_hours = 6
+lookback_hours = 12
 
 # ---------------------------------------------------------------- PROTONS
 # direction "above": alert when flux > threshold (pfu)
@@ -100,7 +104,7 @@ url = "https://services.swpc.noaa.gov/json/goes/primary/integral-protons-1-day.j
 energy = ">=10 MeV"
 threshold = 100.0
 direction = "above"
-lookback_minutes = 30
+lookback_minutes = 480
 cooldown_minutes = 360
 
 [protons.ge100mev]
@@ -109,41 +113,45 @@ url = "https://services.swpc.noaa.gov/json/goes/primary/integral-protons-1-day.j
 energy = ">=100 MeV"
 threshold = 1.0
 direction = "above"
-lookback_minutes = 30
+lookback_minutes = 480
 cooldown_minutes = 360
 
 # ---------------------------------------------------------------- SOLAR WIND
+# lookback_minutes should be longer than the gap between workflow runs (GitHub's scheduler runs
+# every 2-6 hours in practice; see README for an external trigger). An episode ends when the
+# latest reading is back within range, so a long lookback does not suppress later events.
+# Do not use the *-5-minute.json files: they contain a single reading.
 # direction "above": value > threshold.  direction "below": value < threshold
 # (use "below" for Bz, so -40 means "more negative than -40 nT").
 
 [solar_wind]
-plasma_url = "https://services.swpc.noaa.gov/products/solar-wind/plasma-5-minute.json"
-mag_url = "https://services.swpc.noaa.gov/products/solar-wind/mag-5-minute.json"
+plasma_url = "https://services.swpc.noaa.gov/products/solar-wind/plasma-1-day.json"
+mag_url = "https://services.swpc.noaa.gov/products/solar-wind/mag-1-day.json"
 
 [solar_wind.speed]
 enabled = true
 threshold = 800.0                     # km/s
 direction = "above"
-lookback_minutes = 30
+lookback_minutes = 480
 cooldown_minutes = 60
 
 [solar_wind.density]
 enabled = true
 threshold = 10.0                      # particles / cm^3
 direction = "above"
-lookback_minutes = 30
+lookback_minutes = 480
 cooldown_minutes = 60
 
 [solar_wind.bt]
 enabled = true
 threshold = 40.0                      # nT, total field
 direction = "above"
-lookback_minutes = 30
+lookback_minutes = 480
 cooldown_minutes = 60
 
 [solar_wind.bz]
 enabled = true
 threshold = -40.0                     # nT, GSM Bz
 direction = "below"
-lookback_minutes = 30
+lookback_minutes = 480
 cooldown_minutes = 60
