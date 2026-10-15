@@ -96,15 +96,37 @@ Every rule has `enabled`; threshold rules also have `threshold`, `direction`
 
 | Alert | Setting |
 |---|---|
-| Flare class | `[flares] min_class` (flares are alerted at >= this class) |
+| Flares | `[flares.impulsive]` and `[flares.long_duration]`: `warning_min_class` (default M5.0) and `alert_min_class` (default X1.0); `"off"` disables a level. `long_duration_min_minutes` (default 60) splits the two types |
 | Earth-facing limits | `full_facing_max_longitude`, `partial_facing_max_longitude` (degrees from disk centre) |
 | Filament eruption | `[filaments]` (same facing settings) |
-| Dangerous sunspot | `[sunspots]`: Earth-facing (`max_longitude`, default 60) and at least `min_criteria` (default 1) of: `dangerous_classes` (default `["BGD"]`), rapid growth (`growth_area_min_increase`, `growth_spots_min_increase`, per day; counted only for McIntosh classes in `mcintosh_classes`, default `["Fkc", "Ekc", "Fki"]`), `x_flare_probability_min` (default 10 %), `flare_history_min_events` (M+X flares already reported). 0 or `[]` turns an attribute off |
+| Dangerous sunspot | `[sunspots]`: Earth-facing (`max_longitude`, default 60) and at least one of: `dangerous_classes` (default `["BGD"]`), rapid growth (`growth_area_min_increase`, `growth_spots_min_increase`, per day; counted only for McIntosh classes in `mcintosh_classes`, default `["Fkc", "Ekc", "Eki", "Fki"]`), `x_flare_probability_min` (default 10 %), `flare_history_min_events`. `[sunspots.levels]` sets the level of each attribute (`watch`/`warning`/`alert`/`off`). 0 or `[]` turns an attribute off |
 | Coronal hole stream | `[geomagnetic.coronal_hole] include_regex / exclude_regex` (arrival wording only; ongoing or fading streams are excluded) |
 | Forecast storm | `[geomagnetic.storm_forecast] min_g_level` |
 | Actual Kp | `[geomagnetic.kp] min_kp` (>=) |
 | Protons | `[protons.ge10mev]` (100 pfu), `[protons.ge100mev]` (1 pfu) |
 | Solar wind | `[solar_wind.speed / density / bt / bz]` (Bz uses `direction = "below"`) |
+
+## Alert levels
+
+Every alert title starts with its level, and the feed item carries it as a second category (WATCH, WARNING, ALERT).
+
+| Level | Meaning | Default triggers |
+|---|---|---|
+| WATCH | conditions are favourable | fast-growing Earth-facing sunspot (also BGD class, earlier M/X flaring) |
+| WARNING | elevated risk | NOAA X-flare probability >= 10 % on an Earth-facing region; M5.0+ flare |
+| ALERT | the event has happened | X-class flare (Earth-facing) |
+
+A region's level is the highest among the attributes it meets, and an update alert says when the level was raised.
+
+## Impulsive and long-duration flares
+
+Flares are typed from the HEK start and end times: `long_duration_min_minutes` or longer is long-duration, shorter is impulsive.
+While the end has not been reported the type is *pending*: the flare is judged by the more sensitive of the two sets of
+thresholds, and an update alert follows when the type is known (it also reports a changed level). A flare still going after
+`long_duration_min_minutes` is long-duration straight away. Thresholds are set separately per type, so for example
+`[flares.long_duration] warning_min_class = "X1.0"` stops long-duration M flares from warning. Flare records from different
+HEK sources are merged so a missing end time, position or active region is taken from another source.
+Real HEK timing fields are listed under `flares` in `health.json`.
 
 ## How duplicates are avoided
 
@@ -131,7 +153,7 @@ Every rule has `enabled`; threshold rules also have `threshold`, `direction`
 * **Earth-facing is an approximation** from reported longitude. Events with no position yet are ignored by
   default (`unknown_location = "ignore"`); the position usually appears in HEK within minutes and is
   caught on a later poll.
-* **Sunspot alerts lag by up to a day, and use any-of logic.** NOAA's region summary is one record per region per day. A region is flagged when it is Earth-facing and meets at least one enabled attribute (BGD class, rapid growth, X-class flare probability >= 10 %, or M/X flares already reported); no attribute is required, so a region that has not flared yet is still flagged. NOAA's M-class probability is deliberately ignored. Rapid growth compares a region with its previous daily record and counts only if its McIntosh class (NOAA's `spot_class`) is in `mcintosh_classes`; an empty list turns growth off, and a class missing from the list (e.g. AR4551's Eki) never triggers it. Each alert lists its reasons. While a region stays flagged you get one extra "update: now also ..." alert whenever an attribute is met that has not been announced yet (each attribute at most once per episode; an attribute that drops out and returns is not announced again). After it stops being flagged and `cooldown_minutes` has passed, the next episode announces everything again. Spot counts are noisy, so tune the growth thresholds from experience.
+* **Sunspot alerts lag by up to a day, and use any-of logic.** NOAA's region summary is one record per region per day. A region is flagged when it is Earth-facing and meets at least one enabled attribute (BGD class, rapid growth, X-class flare probability >= 10 %, or M/X flares already reported; growth and class give a WATCH, X-flare chance a WARNING); no attribute is required, so a region that has not flared yet is still flagged. NOAA's M-class probability is deliberately ignored. Rapid growth compares a region with its previous daily record and counts only if its McIntosh class (NOAA's `spot_class`) is in `mcintosh_classes`; an empty list turns growth off, and a class missing from the list (e.g. Dai) never triggers it. Each alert lists its reasons. While a region stays flagged you get one extra "update: now also ..." alert whenever an attribute is met that has not been announced yet (each attribute at most once per episode; an attribute that drops out and returns is not announced again). After it stops being flagged and `cooldown_minutes` has passed, the next episode announces everything again. Spot counts are noisy, so tune the growth thresholds from experience.
 * **Filament eruptions** depend on HEK having detections (automated + human). There is no official NOAA
   "filament eruption" alert.
 * **Coronal hole detection is a text heuristic.** It alerts only on arrival or enhancement wording and ignores streams that are already under way or fading. It was tuned on SWPC text from 13-15 Oct 2026; if it misses or over-reports, the sentences it saw are in `health.json` so the two regexes can be adjusted.

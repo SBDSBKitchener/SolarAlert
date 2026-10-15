@@ -67,13 +67,13 @@ class Config(unittest.TestCase):
 
     def test_bad_values_rejected(self):
         cfg = sa.load_config(os.path.join(HERE, "test_config.toml"))
-        cfg["flares"]["min_class"] = "Q9"
+        cfg["flares"]["impulsive"]["warning_min_class"] = "Q9"
         cfg["solar_wind"]["bz"]["direction"] = "sideways"
         del cfg["geomagnetic"]["kp"]["min_kp"]
         with self.assertRaises(sa.ConfigError) as cm:
             sa.validate_config(cfg)
         msg = str(cm.exception)
-        self.assertIn("flares.min_class", msg)
+        self.assertIn("flares.impulsive.warning_min_class", msg)
         self.assertIn("solar_wind.bz.direction", msg)
         self.assertIn("geomagnetic.kp.min_kp", msg)
 
@@ -84,9 +84,13 @@ class Config(unittest.TestCase):
 
 
 class SolarEvents(Base):
-    def ev(self, cls, lon, lat=10, minutes_ago=30, frm="SWPC", kb="a", typ="FL"):
+    def ev(self, cls, lon, lat=10, minutes_ago=30, frm="SWPC", kb="a", typ="FL", duration=None, ar=None):
         e = {"event_type": typ, "event_starttime": ts(minutes_ago + 10, "T"), "event_peaktime": ts(minutes_ago, "T"),
              "hgs_x": lon, "hgs_y": lat, "frm_name": frm, "kb_archivid": kb}
+        if duration is not None:                                    # reported end = start + duration minutes
+            e["event_endtime"] = ts(minutes_ago + 10 - duration, "T")
+        if ar:
+            e["ar_noaanum"] = ar
         if cls:
             e["fl_goescls"] = cls
         return e
@@ -124,8 +128,75 @@ class SolarEvents(Base):
     def test_threshold_is_configurable(self):
         self.f.data[self.cfg["hek"]["url"]] = {"result": [self.ev("M2.0", 10, kb="4")]}
         self.assertEqual(self.cycle(), [])
-        self.cfg["flares"]["min_class"] = "M1.0"
-        self.assertEqual(len(self.cycle()), 1)
+        self.cfg["flares"]["impulsive"]["warning_min_class"] = "M1.0"
+        self.assertEqual(len(self.cycle()), 1)              # pending type: the more sensitive threshold applies
+
+    # ---- levels and impulsive / long-duration typing ----------------------------------------------------
+    def flare(self, *events):
+        self.f.data[self.cfg["hek"]["url"]] = {"result": list(events)}
+        return self.cycle()
+
+    def test_x_class_is_an_alert_and_m_class_a_warning(self):
+        new = self.flare(self.ev("X2.1", 10, kb="x", duration=20), self.ev("M6.0", 12, kb="m", minutes_ago=200, duration=20))
+        by = {a.title.split(":")[0]: a for a in new}
+        self.assertEqual(set(by), {"ALERT", "WARNING"})
+        self.assertIn("X2.1", by["ALERT"].title)
+        self.assertEqual(by["ALERT"].level, "alert")
+        self.assertIn("impulsive", by["ALERT"].title)
+
+    def test_duration_decides_the_type(self):
+        new = self.flare(self.ev("M6.0", 10, kb="a", duration=20), self.ev("M6.0", 12, kb="b", minutes_ago=300, duration=90))
+        titles = " | ".join(self.titles(new))
+        self.assertIn("impulsive solar flare", titles)
+        self.assertIn("long-duration solar flare", titles)
+
+    def test_thresholds_per_type(self):
+        self.cfg["flares"]["long_duration"]["warning_min_class"] = "X1.0"       # long-duration M flares no longer warn
+        self.cfg["flares"]["long_duration"]["alert_min_class"] = "X5.0"
+        new = self.flare(self.ev("M6.0", 10, kb="a", duration=20), self.ev("M6.0", 12, kb="b", minutes_ago=300, duration=90),
+                         self.ev("X2.0", 14, kb="c", minutes_ago=400, duration=90))
+        self.assertEqual(len(new), 2, self.titles(new))
+        levels = {("impulsive" in a.title): a.level for a in new}
+        self.assertEqual(levels[True], "warning")                                  # impulsive M6.0 still warns
+        self.assertTrue(any("long-duration" in a.title and a.level == "warning" for a in new))   # long X2.0 = warning only
+
+    def test_off_disables_a_level(self):
+        self.cfg["flares"]["impulsive"]["alert_min_class"] = "off"
+        new = self.flare(self.ev("X3.0", 10, kb="a", duration=20))
+        self.assertEqual(new[0].level, "warning")                                  # still above the warning class
+
+    def test_pending_flare_gets_an_update_when_its_type_is_known(self):
+        first = self.flare(self.ev("X1.5", 10, kb="p"))                            # no end time yet
+        self.assertEqual(len(first), 1)
+        self.assertIn("duration type pending", first[0].title)
+        self.assertEqual(first[0].level, "alert")
+        self.assertEqual(self.flare(self.ev("X1.5", 10, kb="p")), [])               # nothing new
+        upd = self.flare(self.ev("X1.5", 10, kb="p", duration=25))                 # end reported: impulsive
+        self.assertEqual(len(upd), 1, self.titles(upd))
+        self.assertIn("impulsive", upd[0].title)
+        self.assertIn("update", upd[0].title)
+        self.assertEqual(self.flare(self.ev("X1.5", 10, kb="p", duration=25)), [])
+
+    def test_unfinished_flare_past_the_limit_is_long_duration(self):
+        new = self.flare(self.ev("M6.0", 10, kb="q", minutes_ago=5))
+        self.assertIn("pending", new[0].title)
+        e = self.ev("M7.0", 10, kb="r", minutes_ago=60)
+        e["event_starttime"] = ts(100, "T")                                         # started 100 min ago, no end yet
+        new = self.flare(e)
+        self.assertIn("long-duration", new[-1].title)
+
+    def test_missing_end_and_region_are_filled_from_another_source(self):
+        new = self.flare(self.ev("M8.0", 10, kb="s1", frm="SWPC"),
+                         self.ev("M8.0", 11, kb="s2", frm="SSW", duration=90, ar=4551))
+        self.assertEqual(len(new), 1)
+        self.assertIn("long-duration", new[0].title)
+        self.assertIn("AR4551", new[0].title)
+
+    def test_flare_threshold_ordering_validated(self):
+        cfg = sa.load_config(os.path.join(HERE, "test_config.toml"))
+        cfg["flares"]["impulsive"]["warning_min_class"] = "X2.0"
+        with self.assertRaises(sa.ConfigError):
+            sa.validate_config(cfg)
 
     def test_unknown_location_alert_mode(self):
         self.cfg["flares"]["unknown_location"] = "alert"
@@ -298,15 +369,17 @@ class Sunspots(Base):
         self.assertEqual(obs, "2026-10-14")          # E71/E61 are outside the 60 deg cone; 11-13 Oct met nothing
         for part in ("AR4551", "beta-gamma-delta", "X-flare chance 10%", "Earth-facing", "S15E07"):
             self.assertIn(part, alert.title)
-        # Eki is not in the default McIntosh list (Fkc, Ekc, Fki), so its growth does not count
-        self.assertNotIn("rapid growth", alert.title)
+        # Eki is in the default McIntosh list, so its growth counts; X-flare chance 10% makes it a WARNING
+        self.assertIn("rapid growth", alert.title)
+        self.assertTrue(alert.title.startswith("WARNING: "))
+        self.assertEqual(alert.level, "warning")
+        self.assertIn("McIntosh class Eki", alert.description)
 
-    def test_ar4551_replay_with_its_class_added_to_the_list(self):
-        self.cfg["sunspots"]["mcintosh_classes"] = ["Fkc", "Ekc", "Fki", "Eki"]
+    def test_ar4551_replay_without_its_class_in_the_list(self):
+        self.cfg["sunspots"]["mcintosh_classes"] = ["Fkc", "Ekc", "Fki"]
         obs, alert = self.replay()
         self.assertEqual(obs, "2026-10-14")
-        self.assertIn("rapid growth", alert.title)
-        self.assertIn("McIntosh class Eki", alert.description)
+        self.assertNotIn("rapid growth", alert.title)
 
     # ---- individual attributes: each can flag a region on its own --------------------------------
     def test_class_alone_flags_without_any_flare_history(self):
@@ -353,10 +426,27 @@ class Sunspots(Base):
             self.assertIn(part, d)
         self.assertNotIn("M-class flare probability", d)
 
-    def test_min_criteria(self):
-        self.cfg["sunspots"]["min_criteria"] = 2
-        self.assertEqual(self.flagged(self.rec(region=1)), [])                              # class only
-        self.assertEqual(len(self.flagged(self.rec(region=2, x_flare_probability=10))), 1)  # class + X chance
+    def test_levels_per_attribute(self):
+        sp = self.cfg["sunspots"]
+        a = self.flagged(self.rec(region=1))                                        # BGD only
+        self.assertEqual((a[0].level, a[0].title[:7]), ("watch", "WATCH: "))
+        b = self.flagged(self.rec(region=2, mag="B", x_flare_probability=12))       # X chance only
+        self.assertEqual((b[0].level, b[0].title[:9]), ("warning", "WARNING: "))
+        c = self.flagged(self.rec(region=3, x_flare_probability=12))                # both: highest wins
+        self.assertEqual(c[0].level, "warning")
+        sp["levels"]["xprob"] = "alert"                                             # admin can re-level an attribute
+        d = self.flagged(self.rec(region=4, mag="B", x_flare_probability=12))
+        self.assertEqual(d[0].level, "alert")
+        sp["levels"]["class"] = "off"                                               # "off" ignores the attribute
+        self.assertEqual(self.flagged(self.rec(region=5)), [])
+
+    def test_update_reports_a_raised_level(self):
+        first = self.poll(0, mag="BGD")                                             # WATCH
+        self.assertEqual(first[0].level, "watch")
+        upd = self.poll(1, mag="BGD", x_flare_probability=12)                       # now a WARNING
+        self.assertEqual(upd[0].level, "warning")
+        self.assertTrue(upd[0].title.startswith("WARNING: "))
+        self.assertIn("raised from WATCH to WARNING", upd[0].description)
 
     def test_attributes_can_be_turned_off(self):
         sp = self.cfg["sunspots"]
@@ -375,9 +465,8 @@ class Sunspots(Base):
                             self.rec(region=region, mag="B", days_ago=1, area=600, number_spots=25, spot_class=spot_class, **kw))
 
     def test_growth_counts_only_for_listed_mcintosh_classes(self):
-        self.assertEqual(self.grown("Eki", region=1), [])                       # real class of AR4551: not in the list
         self.assertEqual(self.grown("Dai", region=2), [])
-        for i, cls in enumerate(("Fkc", "Ekc", "Fki"), start=3):
+        for i, cls in enumerate(("Fkc", "Ekc", "Eki", "Fki"), start=3):
             self.assertEqual(len(self.grown(cls, region=i)), 1, cls)
         self.assertEqual(len(self.grown("fKC", region=9)), 1)                   # case-insensitive
 
@@ -452,14 +541,12 @@ class Sunspots(Base):
         self.assertIn("beta-gamma-delta magnetic class", again[0].title)
         self.assertIn("X-flare chance 12%", again[0].title)
 
-    def test_update_respects_min_criteria_and_earth_facing(self):
-        self.cfg["sunspots"]["min_criteria"] = 2
-        self.assertEqual(self.poll(0, mag="BGD"), [])                                # one attribute: not flagged
-        first = self.poll(1, mag="BGD", x_flare_probability=12)                      # two: flagged, both announced
+    def test_update_respects_earth_facing(self):
+        first = self.poll(0, mag="BGD", x_flare_probability=12)
         self.assertEqual(len(first), 1)
         self.assertNotIn("update", first[0].title)
-        self.assertEqual(self.poll(2, mag="BGD", x_flare_probability=12), [])
-        self.assertEqual(self.poll(3, mag="BGD", x_flare_probability=12, m_xray_events=1, loc="S15E80"), [])  # limb
+        self.assertEqual(self.poll(1, mag="BGD", x_flare_probability=12), [])
+        self.assertEqual(self.poll(2, mag="BGD", x_flare_probability=12, m_xray_events=1, loc="S15E80"), [])  # limb
 
     def test_episode_started_before_this_feature_is_seeded_quietly(self):
         # simulate the deployed state: region already flagged and active, nothing recorded as announced
@@ -537,7 +624,7 @@ class Sunspots(Base):
 
     def test_bad_sunspot_config_rejected(self):
         for bad in ({"dangerous_classes": "BGD"}, {"dangerous_classes": [""]}, {"max_longitude": 200},
-                    {"min_criteria": 0}, {"x_flare_probability_min": -1}, {"growth_window_days": 0}):
+                    {"x_flare_probability_min": -1}, {"growth_window_days": 0}):
             cfg = sa.load_config(os.path.join(HERE, "test_config.toml"))
             cfg["sunspots"].update(bad)
             with self.assertRaises(sa.ConfigError, msg=str(bad)):

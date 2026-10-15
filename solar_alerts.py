@@ -178,6 +178,8 @@ KINDS = {
     "strs0": lambda v: isinstance(v, list) and all(isinstance(x, str) and x.strip() for x in v),   # may be empty
     "mcintosh": lambda v: isinstance(v, list) and all(
         isinstance(x, str) and re.fullmatch(r"[ABCDEFH][XRSAHK][XOIC]", x.strip(), re.I) for x in v),
+    "level": lambda v: v in ("off",) + LEVELS,
+    "classoff": lambda v: goes_flux(v) is not None or (isinstance(v, str) and v.strip().lower() == "off"),
     "nonneg": lambda v: _is_num(v) and v >= 0,
     "posint": lambda v: isinstance(v, int) and not isinstance(v, bool) and v >= 1,
 }
@@ -210,11 +212,14 @@ def _schema():
               (f"{sec}.full_facing_max_longitude", "num"),
               (f"{sec}.partial_facing_max_longitude", "num"),
               (f"{sec}.unknown_location", "loc"), (f"{sec}.link", "str")]
-    s.append(("flares.min_class", "class"))
+    s.append(("flares.long_duration_min_minutes", "nonneg"))
+    for kind_ in ("impulsive", "long_duration"):
+        s += [(f"flares.{kind_}.warning_min_class", "classoff"), (f"flares.{kind_}.alert_min_class", "classoff")]
     s += [("sunspots.enabled", "bool"), ("sunspots.url", "str"), ("sunspots.dangerous_classes", "strs0"),
           ("sunspots.max_longitude", "num"), ("sunspots.max_age_days", "nonneg"),
           ("sunspots.cooldown_minutes", "nonneg"), ("sunspots.link", "str"),
-          ("sunspots.min_criteria", "posint"), ("sunspots.mcintosh_classes", "mcintosh"), ("sunspots.growth_window_days", "posint"),
+          ("sunspots.levels.class", "level"), ("sunspots.levels.growth", "level"),
+          ("sunspots.levels.xprob", "level"), ("sunspots.levels.flares", "level"), ("sunspots.mcintosh_classes", "mcintosh"), ("sunspots.growth_window_days", "posint"),
           ("sunspots.growth_area_min_increase", "nonneg"), ("sunspots.growth_spots_min_increase", "nonneg"),
           ("sunspots.x_flare_probability_min", "nonneg"), ("sunspots.flare_history_min_events", "nonneg")]
     for r in ("speed", "density", "bt", "bz"):
@@ -255,6 +260,10 @@ def validate_config(cfg):
             full, part = cfg[sec]["full_facing_max_longitude"], cfg[sec]["partial_facing_max_longitude"]
             if not 0 <= full <= part <= 180:
                 errors.append(f"{sec}: need 0 <= full_facing_max_longitude <= partial_facing_max_longitude <= 180")
+        for kind_ in ("impulsive", "long_duration"):
+            w, a_ = goes_flux(cfg["flares"][kind_]["warning_min_class"]), goes_flux(cfg["flares"][kind_]["alert_min_class"])
+            if w is not None and a_ is not None and w > a_:
+                errors.append(f"flares.{kind_}: warning_min_class must not be higher than alert_min_class")
         if not 0 <= cfg["sunspots"]["max_longitude"] <= 180:
             errors.append("sunspots: need 0 <= max_longitude <= 180")
     if errors:
@@ -270,6 +279,19 @@ def load_config(path):
 
 # --------------------------------------------------------------------------- model + store
 
+LEVELS = ("watch", "warning", "alert")           # lowest to highest
+LEVEL_LABEL = {"watch": "WATCH", "warning": "WARNING", "alert": "ALERT"}
+
+
+def level_rank(level):
+    return LEVELS.index(level) if level in LEVELS else -1
+
+
+def top_level(levels):
+    levels = [x for x in levels if x in LEVELS]
+    return max(levels, key=level_rank) if levels else None
+
+
 @dataclass
 class Alert:
     key: str                     # unique, persistent de-dupe key
@@ -282,7 +304,9 @@ class Alert:
     cooldown_minutes: float = 0
     near_minutes: float = 0      # suppress if same category alerted within +/- this many minutes
     attrs: tuple = ()            # attribute codes met now; lets later runs announce newly met ones
-    on_update: object = None     # callable(newly_met_codes) -> (title, description)
+    on_update: object = None     # callable(newly_met_codes, already_announced) -> (title, description, level)
+    level: str = ""              # watch | warning | alert (shown in the title and as an extra feed category)
+    update_only: bool = False    # may only announce changes to an episode that is already open, never start one
 
 
 class Store:
@@ -292,12 +316,14 @@ class Store:
         self.db.executescript("""
             CREATE TABLE IF NOT EXISTS alerts(
                 id INTEGER PRIMARY KEY, dedupe_key TEXT UNIQUE, category TEXT, title TEXT,
-                description TEXT, link TEXT, event_time TEXT, created_at TEXT);
+                description TEXT, link TEXT, event_time TEXT, created_at TEXT, level TEXT DEFAULT '');
             CREATE TABLE IF NOT EXISTS groups(
                 name TEXT PRIMARY KEY, active INTEGER DEFAULT 0, last_alert TEXT);
             CREATE TABLE IF NOT EXISTS reported(
                 grp TEXT, attr TEXT, PRIMARY KEY(grp, attr));
         """)
+        if "level" not in {r[1] for r in self.db.execute("PRAGMA table_info(alerts)")}:
+            self.db.execute("ALTER TABLE alerts ADD COLUMN level TEXT DEFAULT ''")
 
     def has_key(self, key):
         return self.db.execute("SELECT 1 FROM alerts WHERE dedupe_key=?", (key,)).fetchone() is not None
@@ -329,16 +355,16 @@ class Store:
                         "ON CONFLICT(name) DO UPDATE SET active=excluded.active", (name, int(active)))
 
     def add(self, a, now):
-        self.db.execute("INSERT INTO alerts(dedupe_key,category,title,description,link,event_time,created_at) "
-                        "VALUES(?,?,?,?,?,?,?)",
-                        (a.key, a.category, a.title, a.description, a.link, iso(a.event_time), iso(now)))
+        self.db.execute("INSERT INTO alerts(dedupe_key,category,title,description,link,event_time,created_at,level) "
+                        "VALUES(?,?,?,?,?,?,?,?)",
+                        (a.key, a.category, a.title, a.description, a.link, iso(a.event_time), iso(now), a.level or ""))
 
     def recent(self, max_age_days, limit, now):
         cutoff = iso(now - timedelta(days=max_age_days))
-        cur = self.db.execute("SELECT dedupe_key,category,title,description,link,event_time,created_at "
+        cur = self.db.execute("SELECT dedupe_key,category,title,description,link,event_time,created_at,level "
                               "FROM alerts WHERE created_at>=? ORDER BY created_at DESC, id DESC LIMIT ?",
                               (cutoff, limit))
-        return [dict(zip(("key", "category", "title", "description", "link", "event_time", "created_at"), r))
+        return [dict(zip(("key", "category", "title", "description", "link", "event_time", "created_at", "level"), r))
                 for r in cur]
 
     def prune(self, days, now):
@@ -409,34 +435,157 @@ def _hek_position(ev, c):
     return lon, lat, label, label is not None
 
 
+FLARE_TYPE_KEY = {"impulsive": "impulsive", "long-duration": "long_duration"}
+
+
+def flare_duration_type(ev, now, long_min):
+    """-> (type, minutes). type is 'impulsive', 'long-duration' or 'pending' (end not reported yet and
+    the flare has not yet lasted long enough to be certain). minutes is the start-to-end duration if known."""
+    start, end = parse_time(ev.get("event_starttime")), parse_time(ev.get("event_endtime"))
+    if start and end and end > start:
+        mins = (end - start).total_seconds() / 60
+        return ("long-duration" if mins >= long_min else "impulsive"), mins
+    if start and (now - start).total_seconds() / 60 >= long_min:
+        return "long-duration", None                        # still going after long_min minutes: certainly long
+    return "pending", None
+
+
+def flare_level(c, flux, ftype):
+    """Highest level a flare of this GOES flux reaches. A flare whose type is not known yet is judged by the
+    more sensitive of the impulsive and long-duration thresholds. A class of "off" disables that level."""
+    keys = [FLARE_TYPE_KEY[ftype]] if ftype in FLARE_TYPE_KEY else list(FLARE_TYPE_KEY.values())
+    best = None
+    for k in keys:
+        for level in ("alert", "warning"):
+            thr = goes_flux(c[k][f"{level}_min_class"])     # None when "off"
+            if thr is not None and flux >= thr:
+                best = top_level([best, level])
+                break
+    return best
+
+
+def merge_flare_records(events):
+    """HEK lists one flare once per source (SWPC, SSW Latest Events, ...), each with different gaps: SWPC often
+    has no position (0,0), another may lack the end time or the active region. Fill each record's gaps from the
+    other records of the same flare (peak within 15 minutes and the same class)."""
+    def peak(e):
+        return parse_time(e.get("event_peaktime")) or parse_time(e.get("event_starttime"))
+
+    def has_pos(e):
+        x, y = to_float(e.get("hgs_x")), to_float(e.get("hgs_y"))
+        return x is not None and y is not None and not (x == 0 and y == 0)
+
+    def has_span(e):
+        st, en = parse_time(e.get("event_starttime")), parse_time(e.get("event_endtime"))
+        return bool(st and en and en > st)
+
+    def has_ar(e):
+        return to_float(e.get("ar_noaanum")) not in (None, 0.0)
+
+    merged = []
+    for e in events:
+        m, pe = dict(e), peak(e)
+        for o in events:
+            po = peak(o)
+            if o is e or pe is None or po is None or abs((pe - po).total_seconds()) > 900:
+                continue
+            ce, co = str(e.get("fl_goescls") or "").strip().upper(), str(o.get("fl_goescls") or "").strip().upper()
+            if ce and co and ce != co:
+                continue
+            if not has_span(m) and has_span(o):
+                m["event_starttime"], m["event_endtime"] = o["event_starttime"], o["event_endtime"]
+            if not has_ar(m) and has_ar(o):
+                m["ar_noaanum"] = o["ar_noaanum"]
+            if not has_pos(m) and has_pos(o):
+                m["hgs_x"], m["hgs_y"] = o["hgs_x"], o["hgs_y"]
+        merged.append(m)
+    return merged
+
+
 def check_flares(cfg, fetch, now):
+    """Earth-facing flares at WARNING or ALERT level, typed impulsive or long-duration.
+
+    The level comes from the flare's GOES class against the thresholds for its type ([flares.impulsive] and
+    [flares.long_duration]). A flare whose type is not yet known is alerted using the more sensitive thresholds
+    and followed by an update when its type is known (the update also reports a changed level)."""
     c = cfg["flares"]
     if not c["enabled"]:
         return [], {}
-    min_flux, alerts = goes_flux(c["min_class"]), []
-    events = hek_events(cfg, fetch, "FL", c["lookback_hours"], now)
+    long_min = c["long_duration_min_minutes"]
+    events = merge_flare_records(hek_events(cfg, fetch, "FL", c["lookback_hours"], now))
     big = sorted(events, key=lambda e: goes_flux(e.get("fl_goescls")) or 0, reverse=True)[:5]
-    _NOTES["flares"] = {"events": len(events), "with_class": sum(1 for e in events if goes_flux(e.get("fl_goescls"))),
-                        "with_position": sum(1 for e in events if to_float(e.get("hgs_x")) is not None),
-                        "strongest": [{k: e.get(k) for k in ("fl_goescls", "hgs_x", "hgs_y", "event_peaktime", "frm_name")}
-                                      for e in big]}
+    _NOTES["flares"] = {
+        "events": len(events), "with_class": sum(1 for e in events if goes_flux(e.get("fl_goescls"))),
+        "with_position": sum(1 for e in events if to_float(e.get("hgs_x")) not in (None, 0.0)),
+        "with_end_time": sum(1 for e in events if parse_time(e.get("event_endtime"))),
+        "with_active_region": sum(1 for e in events if to_float(e.get("ar_noaanum")) not in (None, 0.0)),
+        "strongest": [{**{k: e.get(k) for k in ("fl_goescls", "hgs_x", "hgs_y", "event_starttime", "event_peaktime",
+                                                 "event_endtime", "ar_noaanum", "frm_name")},
+                       "type": flare_duration_type(e, now, long_min)[0]} for e in big]}
+    alerts, conds = [], {}
     for ev in events:
-        cls = ev.get("fl_goescls")
+        cls = str(ev.get("fl_goescls") or "").strip().upper()
         flux = goes_flux(cls)
-        if flux is None or flux < min_flux:
+        if flux is None:
             continue
+        ftype, mins = flare_duration_type(ev, now, long_min)
+        level = flare_level(c, flux, ftype)
+        provisional = flare_level(c, flux, "pending")
+        if level is None and not (ftype != "pending" and provisional is not None):
+            continue                                                    # below every threshold
         lon, lat, label, include = _hek_position(ev, c)
         if not include:
             continue
         t = parse_time(ev.get("event_peaktime")) or parse_time(ev.get("event_starttime")) or now
         where = f"{fmt_loc(lon, lat)}, {label}" if lon is not None else "location not yet reported"
+        ar = to_float(ev.get("ar_noaanum"))
+        ar_txt = f" from AR{int(ar)}" if ar not in (None, 0.0) else ""
+        kb = ev.get("kb_archivid") or ev.get("ivorn") or iso(t)
+        group = f"flare_{kb}"
+        start, end = parse_time(ev.get("event_starttime")), parse_time(ev.get("event_endtime"))
+        times = f"Start {start:%H:%M}, " if start else ""
+        times += f"peak {t:%H:%M}" + (f", end {end:%H:%M}" if end and start and end > start else "") + " UTC"
+
+        def describe_type(ftype=ftype, mins=mins, start=start):
+            if ftype == "pending":
+                return "duration type not yet known (the flare is still in progress or its end has not been reported)"
+            if mins is not None:
+                return f"{ftype} ({mins:.0f} minutes; long-duration is {long_min:g} minutes or more)"
+            elapsed = (now - start).total_seconds() / 60 if start else long_min
+            return f"long-duration (already lasting {elapsed:.0f} minutes and not yet ended)"
+
+        def updater(fresh, seen, cls=cls, flux=flux, ftype=ftype, level=level, ar_txt=ar_txt, t=t,
+                    times=times, describe_type=describe_type):
+            before = top_level([flare_level(c, flux, x) for x in seen])
+            if level is None:
+                head, tail = "UPDATE", (f"It is below the configured thresholds for {ftype} flares, so no alert "
+                                        f"level applies any more.")
+            else:
+                head, tail = LEVEL_LABEL[level], f"Level: {LEVEL_LABEL[level]}."
+            if level != before and before:
+                tail += f" Previously reported as {LEVEL_LABEL[before]}."
+            return (f"{head}: {cls} solar flare{ar_txt} update, now classified {ftype if ftype != 'pending' else 'pending'}",
+                    f"The {cls} solar flare{ar_txt} that peaked at {t:%Y-%m-%d %H:%M} UTC is now classified as "
+                    f"{describe_type()}. {times}. {tail}", level or "")
+
+        if level is None:                                               # only to close out a provisional alert
+            alerts.append(Alert(key=f"flare:{kb}", category="Solar flare", title="", description="", link=c["link"],
+                                event_time=t, group=group, attrs=(ftype,), on_update=updater, update_only=True))
+            conds[group] = True
+            continue
+        type_words = {"impulsive": "impulsive ", "long-duration": "long-duration ", "pending": ""}[ftype]
+        pending_note = " (duration type pending)" if ftype == "pending" else ""
         alerts.append(Alert(
-            key=f"flare:{ev.get('kb_archivid') or ev.get('ivorn') or iso(t)}", category="Solar flare",
-            title=f"{cls.strip().upper()} solar flare ({where})",
-            description=f"A {cls.strip().upper()} class solar flare peaked at {t:%Y-%m-%d %H:%M} UTC. "
-                        f"Position: {where}. Reported by: {ev.get('frm_name', 'unknown')}.",
-            link=c["link"], event_time=t, near_minutes=15))
-    return alerts, {}
+            key=f"flare:{kb}", category="Solar flare", level=level,
+            title=f"{LEVEL_LABEL[level]}: {cls} {type_words}solar flare{pending_note}{ar_txt} ({where})",
+            description=f"A {cls} class solar flare{ar_txt} peaked at {t:%Y-%m-%d %H:%M} UTC. Position: {where}. "
+                        f"Classified as {describe_type()}. {times}. Level: {LEVEL_LABEL[level]}"
+                        + (" (judged by the more sensitive thresholds until the type is known)" if ftype == "pending" else "")
+                        + f". Reported by: {ev.get('frm_name', 'unknown')}.",
+            link=c["link"], event_time=t, near_minutes=15, group=group, cooldown_minutes=0,
+            attrs=(ftype,), on_update=updater))
+        conds[group] = True
+    return alerts, conds
 
 
 def check_filaments(cfg, fetch, now):
@@ -608,8 +757,9 @@ HALE_NAMES = {"A": "alpha", "B": "beta", "G": "gamma", "D": "delta"}
 def check_sunspots(cfg, fetch, now):
     """Earth-facing sunspot regions that look potentially dangerous.
 
-    A region is flagged when it is within max_longitude of disk centre AND at least min_criteria of the
-    enabled attributes are met (none is required on its own):
+    A region is flagged when it is within max_longitude of disk centre AND at least one enabled attribute is
+    met (none is required on its own). Each attribute has its own level ([sunspots.levels]); the alert takes
+    the highest level among the attributes met (default: fast growth = WATCH, X-flare chance = WARNING):
       * magnetic class in dangerous_classes (default BGD)
       * rapid growth: area and/or spot count up by the given amount per day versus the previous record,
         counted only when the region's McIntosh class is in mcintosh_classes
@@ -674,8 +824,9 @@ def check_sunspots(cfg, fetch, now):
         if c["flare_history_min_events"] > 0 and nflares >= c["flare_history_min_events"]:
             why.append(("flares", "M/X flares already",
                         f"{nflares:g} M/X-class flare{'s' if nflares != 1 else ''} already reported"))
+        why = [w for w in why if c["levels"][w[0]] != "off"]          # an attribute set to "off" is ignored
         group = f"sunspot_{num}"
-        breached = facing_now and len(why) >= c["min_criteria"]
+        breached = facing_now and bool(why)
         conds[group] = breached
         if facing_now or why:
             notes.append({"region": num, "location": loc, "mag_class": cls, "spot_class": spot_class,
@@ -692,17 +843,23 @@ def check_sunspots(cfg, fetch, now):
             extra.append(f"{r['number_spots']} spots")
         basis = f"Based on NOAA's region summary for {t:%Y-%m-%d} UTC."
 
-        def updater(fresh, why=why, num=num, where=where, basis=basis):
+        level = top_level([c["levels"][w[0]] for w in why])
+
+        def updater(fresh, seen, why=why, num=num, where=where, basis=basis, level=level):
             news = [w for w in why if w[0] in fresh]
-            return (f"Sunspot AR{num} update: now also {', '.join(w[1] for w in news)} (Earth-facing, {where})",
+            before = top_level([c["levels"][x] for x in seen if x in c["levels"]])
+            raised = (f" Level raised from {LEVEL_LABEL[before]} to {LEVEL_LABEL[level]}."
+                      if before and level_rank(level) > level_rank(before) else f" Level: {LEVEL_LABEL[level]}.")
+            return (f"{LEVEL_LABEL[level]}: Sunspot AR{num} update, now also {', '.join(w[1] for w in news)} "
+                    f"(Earth-facing, {where})",
                     f"Sunspot region AR{num}, already flagged as potentially dangerous, now also shows: "
                     + "; ".join(w[2] for w in news) + ". All current attributes: "
-                    + "; ".join(w[2] for w in why) + f". {basis}")
+                    + "; ".join(w[2] for w in why) + f".{raised} {basis}", level)
 
         alerts.append(Alert(
-            key=f"sunspot:{num}:{iso(t)}", category="Sunspot",
-            title=f"Dangerous sunspot AR{num}: {', '.join(w[1] for w in why)} (Earth-facing, {where})",
-            description=f"Sunspot region AR{num} is Earth-facing at {where} and shows: "
+            key=f"sunspot:{num}:{iso(t)}", category="Sunspot", level=level,
+            title=f"{LEVEL_LABEL[level]}: Sunspot AR{num}: {', '.join(w[1] for w in why)} (Earth-facing, {where})",
+            description=f"Level: {LEVEL_LABEL[level]}. Sunspot region AR{num} is Earth-facing at {where} and shows: "
                         + "; ".join(w[2] for w in why) + ". "
                         + ("; ".join(extra) + ". " if extra else "") + basis,
             link=c["link"], event_time=t, group=group, cooldown_minutes=c["cooldown_minutes"],
@@ -729,9 +886,9 @@ def announce_new_attributes(store, a, now):
     if not fresh:
         return None
     store.add_reported(a.group, fresh)
-    title, description = a.on_update(fresh)
+    title, description, level = a.on_update(fresh, seen)
     upd = Alert(key=f"{a.key}+{'+'.join(fresh)}", category=a.category, title=title, description=description,
-                link=a.link, event_time=a.event_time)
+                link=a.link, event_time=a.event_time, level=level or "")
     if store.has_key(upd.key):
         return None
     store.add(upd, now)
@@ -745,6 +902,8 @@ def process(store, alerts, conditions, now):
             upd = announce_new_attributes(store, a, now)
             if upd:
                 new.append(upd)
+            continue
+        if a.update_only:
             continue
         if store.has_key(a.key):
             continue
@@ -783,6 +942,8 @@ def render_feed(cfg, items):
                 f'<guid isPermaLink="false">{escape(it["key"])}</guid>',
                 f"<pubDate>{format_datetime(parse_time(it['event_time']))}</pubDate>",
                 f"<category>{escape(it['category'])}</category>",
+                *([f"<category>{escape(LEVEL_LABEL.get(it['level'], it['level'].title()))}</category>"]
+                  if it.get("level") else []),
                 f"<description>{escape(it['description'])}</description>", "</item>"]
     out += ["</channel>", "</rss>", ""]
     return "\n".join(out)

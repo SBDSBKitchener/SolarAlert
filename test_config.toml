@@ -29,14 +29,31 @@ url = "https://www.lmsal.com/hek/her"
 #   |lon| <= partial_facing_max_longitude  -> "partially Earth-facing (near limb)"
 # unknown_location: "ignore" or "alert" when HEK has no position for the event yet.
 
+# Earth-facing flares are reported at one of two levels, judged by GOES class against the thresholds for the
+# flare's TYPE (so impulsive and long-duration flares can be given different thresholds later):
+#   WARNING  class >= warning_min_class          ALERT  class >= alert_min_class
+# A class of "off" disables that level for that type. Defaults: M5.0 and above is a WARNING, X1.0 and above an ALERT.
+# Type comes from the HEK start/end times: duration >= long_duration_min_minutes is "long-duration", shorter is
+# "impulsive". Until a flare's end is reported its type is "pending": it is judged by the more sensitive of the two
+# sets of thresholds and an update is posted when the type is known (including any change of level).
+# Positions come from HEK (hgs_x/hgs_y); events with no position are handled by unknown_location.
+
 [flares]
 enabled = true
-min_class = "M5.0"                    # alert on flares at or above this GOES class
+long_duration_min_minutes = 60
 lookback_hours = 6
 full_facing_max_longitude = 60
 partial_facing_max_longitude = 90
 unknown_location = "ignore"
 link = "https://www.swpc.noaa.gov/products/goes-x-ray-flux"
+
+[flares.impulsive]
+warning_min_class = "M5.0"
+alert_min_class = "X1.0"
+
+[flares.long_duration]
+warning_min_class = "M5.0"
+alert_min_class = "X1.0"
 
 [filaments]
 enabled = true
@@ -48,7 +65,7 @@ link = "https://sdo.gsfc.nasa.gov/data/"
 
 # ---------------------------------------------------------------- SUNSPOTS
 # Flags potentially dangerous sunspot regions. A region is flagged when it is Earth-facing
-# (within max_longitude degrees of disk centre) AND at least min_criteria of the attributes
+# (within max_longitude degrees of disk centre) AND at least one of the attributes
 # below are met. No single attribute is required: a region with no flare history, or without a
 # delta field, is still flagged if it meets enough of the others.
 #
@@ -66,7 +83,6 @@ link = "https://sdo.gsfc.nasa.gov/data/"
 #                              (NOAA's M-class probability is deliberately not used.)
 #   flare_history_min_events   M- plus X-class flares already reported for the region in its latest
 #                              daily record, alert when >= this. 0 = off.
-#   min_criteria               how many of the enabled attributes must be met (1 = any one).
 #
 # Source: NOAA Solar Region Summary, updated about once a day, so alerts lag by up to ~24 h.
 # max_age_days: ignore a region whose latest record is older than this.
@@ -79,17 +95,25 @@ link = "https://sdo.gsfc.nasa.gov/data/"
 enabled = true
 url = "https://services.swpc.noaa.gov/json/solar_regions.json"
 max_longitude = 60
-min_criteria = 1
 dangerous_classes = ["BGD"]
 growth_area_min_increase = 100
 growth_spots_min_increase = 10
 growth_window_days = 2
-mcintosh_classes = ["Fkc", "Ekc", "Fki"]
+mcintosh_classes = ["Fkc", "Ekc", "Eki", "Fki"]
 x_flare_probability_min = 10
 flare_history_min_events = 1
 max_age_days = 3
 cooldown_minutes = 1440
 link = "https://www.swpc.noaa.gov/products/solar-region-summary"
+
+# Alert level of each attribute: "watch", "warning", "alert" or "off". A region's alert takes the highest
+# level among the attributes it meets. Levels: WATCH = conditions favourable (fast-growing Earth-facing spot),
+# WARNING = elevated flare risk (X-flare chance), ALERT = an event has happened (an X-class flare; see [flares]).
+[sunspots.levels]
+growth = "watch"
+class = "watch"
+xprob = "warning"
+flares = "watch"
 
 # ---------------------------------------------------------------- GEOMAGNETIC
 
