@@ -435,6 +435,55 @@ class LongLookback(ProtonsAndWind):
         self.assertEqual(self.cycle(NOW + timedelta(minutes=3)), [])     # same episode
 
 
+class RealtimeSolarWind(Base):
+    """SWPC rtsw one-minute files: dict rows from several spacecraft, one flagged active."""
+
+    def setUp(self):
+        super().setUp()
+        sw = self.cfg["solar_wind"]
+        for name, field in (("speed", "proton_speed"), ("density", "proton_density"), ("bt", "bt"), ("bz", "bz_gsm")):
+            sw[name]["field"], sw[name]["lookback_minutes"] = field, 480
+        self.plasma, self.mag = sw["plasma_url"], sw["mag_url"]
+
+    def wind(self, *rows):      # (minutes_ago, source, active, speed, density)
+        self.f.data[self.plasma] = [{"time_tag": ts(m, "T"), "source": src, "active": act,
+                                     "proton_speed": v, "proton_density": d} for m, src, act, v, d in rows]
+
+    def magnet(self, *rows):    # (minutes_ago, source, active, bt, bz)
+        self.f.data[self.mag] = [{"time_tag": ts(m, "T"), "source": src, "active": act,
+                                  "bt": bt, "bz_gsm": bz} for m, src, act, bt, bz in rows]
+
+    def test_inactive_spacecraft_ignored(self):
+        self.wind((5, "IMAP", False, 900.0, 3.0), (5, "ACE", False, 950.0, 3.0), (5, "SOLAR1", True, 500.0, 3.0))
+        self.assertEqual(self.cycle(), [])
+
+    def test_active_spacecraft_alerts_once(self):
+        self.wind((60, "SOLAR1", True, 850.0, 3.0), (60, "IMAP", False, 400.0, 3.0), (5, "SOLAR1", True, 500.0, 3.0))
+        new = self.cycle()
+        self.assertEqual(len(new), 1)
+        self.assertIn("850", new[0].title)
+        self.assertEqual(self.cycle(NOW + timedelta(hours=1)), [])
+
+    def test_magnetic_field_rules(self):
+        self.magnet((10, "SOLAR1", True, 45.0, -42.0), (10, "IMAP", False, 20.0, -90.0), (3, "SOLAR1", True, 50.0, -44.0))
+        titles = self.titles(self.cycle())
+        self.assertEqual(len(titles), 2, titles)
+        self.assertTrue(any("Bt" in t for t in titles) and any("Bz" in t for t in titles))
+
+    def test_null_readings_ignored(self):
+        self.wind((5, "SOLAR1", True, None, None))
+        self.assertEqual(self.cycle(), [])
+
+    def test_falls_back_to_all_rows_if_nothing_active(self):
+        self.wind((5, "IMAP", False, 850.0, 3.0))
+        self.assertEqual(len(self.cycle()), 1)
+
+    def test_only_active_can_be_turned_off(self):
+        self.cfg["solar_wind"]["only_active"] = False
+        self.wind((5, "IMAP", False, 900.0, 3.0), (5, "SOLAR1", True, 500.0, 3.0))
+        self.assertEqual(len(self.cycle()), 1)
+
+
 class Health(Base):
     def test_health_report_written(self):
         import json as _json

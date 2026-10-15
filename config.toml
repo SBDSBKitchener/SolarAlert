@@ -120,16 +120,20 @@ cooldown_minutes = 360
 # lookback_minutes should be longer than the gap between workflow runs (GitHub's scheduler runs
 # every 2-6 hours in practice; see README for an external trigger). An episode ends when the
 # latest reading is back within range, so a long lookback does not suppress later events.
-# Do not use the *-5-minute.json files: they contain a single reading.
+# Sources: SWPC real-time solar wind (rtsw), one-minute rows from several spacecraft. only_active keeps
+# just the spacecraft SWPC flags as active. Do not use the old products/solar-wind files (removed or
+# single-reading). `field` names the column each rule reads.
 # direction "above": value > threshold.  direction "below": value < threshold
 # (use "below" for Bz, so -40 means "more negative than -40 nT").
 
 [solar_wind]
-plasma_url = "https://services.swpc.noaa.gov/products/solar-wind/plasma-1-day.json"
-mag_url = "https://services.swpc.noaa.gov/products/solar-wind/mag-1-day.json"
+plasma_url = "https://services.swpc.noaa.gov/json/rtsw/rtsw_wind_1m.json"
+mag_url = "https://services.swpc.noaa.gov/json/rtsw/rtsw_mag_1m.json"
+only_active = true
 
 [solar_wind.speed]
 enabled = true
+field = "proton_speed"
 threshold = 800.0                     # km/s
 direction = "above"
 lookback_minutes = 480
@@ -137,6 +141,7 @@ cooldown_minutes = 60
 
 [solar_wind.density]
 enabled = true
+field = "proton_density"
 threshold = 10.0                      # particles / cm^3
 direction = "above"
 lookback_minutes = 480
@@ -144,6 +149,7 @@ cooldown_minutes = 60
 
 [solar_wind.bt]
 enabled = true
+field = "bt"
 threshold = 40.0                      # nT, total field
 direction = "above"
 lookback_minutes = 480
@@ -151,6 +157,7 @@ cooldown_minutes = 60
 
 [solar_wind.bz]
 enabled = true
+field = "bz_gsm"
 threshold = -40.0                     # nT, GSM Bz
 direction = "below"
 lookback_minutes = 480

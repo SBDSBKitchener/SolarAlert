@@ -188,7 +188,7 @@ def _schema():
          ("runtime.database", "str"), ("runtime.user_agent", "str"),
          ("runtime.http_timeout_seconds", "num"), ("runtime.retention_days", "num"),
          ("hek.url", "str"),
-         ("solar_wind.plasma_url", "str"), ("solar_wind.mag_url", "str"),
+         ("solar_wind.plasma_url", "str"), ("solar_wind.mag_url", "str"), ("solar_wind.only_active", "bool"),
          ("geomagnetic.coronal_hole.enabled", "bool"), ("geomagnetic.coronal_hole.url", "str"),
          ("geomagnetic.coronal_hole.include_regex", "regex"),
          ("geomagnetic.coronal_hole.exclude_regex", "regex"),
@@ -209,6 +209,8 @@ def _schema():
     s += [("sunspots.enabled", "bool"), ("sunspots.url", "str"), ("sunspots.dangerous_classes", "strs"),
           ("sunspots.max_longitude", "num"), ("sunspots.max_age_days", "num"),
           ("sunspots.cooldown_minutes", "num"), ("sunspots.link", "str")]
+    for r in ("speed", "density", "bt", "bz"):
+        s.append((f"solar_wind.{r}.field", "str"))
     for r in THRESHOLD_RULES:
         s += [(f"{r}.enabled", "bool"), (f"{r}.threshold", "num"), (f"{r}.direction", "dir"),
               (f"{r}.lookback_minutes", "num"), (f"{r}.cooldown_minutes", "num")]
@@ -391,7 +393,13 @@ def check_flares(cfg, fetch, now):
     if not c["enabled"]:
         return [], {}
     min_flux, alerts = goes_flux(c["min_class"]), []
-    for ev in hek_events(cfg, fetch, "FL", c["lookback_hours"], now):
+    events = hek_events(cfg, fetch, "FL", c["lookback_hours"], now)
+    big = sorted(events, key=lambda e: goes_flux(e.get("fl_goescls")) or 0, reverse=True)[:5]
+    _NOTES["flares"] = {"events": len(events), "with_class": sum(1 for e in events if goes_flux(e.get("fl_goescls"))),
+                        "with_position": sum(1 for e in events if to_float(e.get("hgs_x")) is not None),
+                        "strongest": [{k: e.get(k) for k in ("fl_goescls", "hgs_x", "hgs_y", "event_peaktime", "frm_name")}
+                                      for e in big]}
+    for ev in events:
         cls = ev.get("fl_goescls")
         flux = goes_flux(cls)
         if flux is None or flux < min_flux:
@@ -534,21 +542,31 @@ def check_protons(cfg, fetch, now):
     return alerts, conds
 
 
-SW_FIELDS = {"speed": ("plasma_url", "speed", "Solar wind speed", "km/s"),
-             "density": ("plasma_url", "density", "Solar wind density", "p/cm³"),
-             "bt": ("mag_url", "bt", "IMF total field (Bt)", "nT"),
-             "bz": ("mag_url", "bz_gsm", "IMF Bz (GSM)", "nT")}
+SW_FIELDS = {"speed": ("plasma_url", "Solar wind speed", "km/s"),
+             "density": ("plasma_url", "Solar wind density", "p/cm³"),
+             "bt": ("mag_url", "IMF total field (Bt)", "nT"),
+             "bz": ("mag_url", "IMF Bz (GSM)", "nT")}
+
+
+def active_rows(rows, only_active):
+    """SWPC's rtsw files interleave several spacecraft; each row says whether it is the active source."""
+    if not only_active or not any("active" in r for r in rows):
+        return rows
+    chosen = [r for r in rows if r.get("active") is True]
+    if not chosen:
+        log.warning("solar wind: no row is flagged active; using all spacecraft")
+    return chosen or rows
 
 
 def check_solar_wind(cfg, fetch, now):
     sw, alerts, conds, cache = cfg["solar_wind"], [], {}, {}
-    for name, (url_key, field, label, unit) in SW_FIELDS.items():
-        rule = sw[name]
+    for name, (url_key, label, unit) in SW_FIELDS.items():
+        rule, field = sw[name], sw[name]["field"]
         if not rule["enabled"]:
             continue
         try:
             if sw[url_key] not in cache:
-                cache[sw[url_key]] = table_rows(fetch.json(sw[url_key]))
+                cache[sw[url_key]] = active_rows(table_rows(fetch.json(sw[url_key])), sw["only_active"])
         except Exception as e:                              # one feed failing must not hide the others
             log.warning("solar wind %s: fetch failed: %s", name, e)
             continue

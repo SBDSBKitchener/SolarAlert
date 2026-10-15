@@ -124,9 +124,11 @@ cooldown_minutes = 360
 [solar_wind]
 plasma_url = "https://services.swpc.noaa.gov/products/solar-wind/plasma-5-minute.json"
 mag_url = "https://services.swpc.noaa.gov/products/solar-wind/mag-5-minute.json"
+only_active = true
 
 [solar_wind.speed]
 enabled = true
+field = "speed"
 threshold = 800.0                     # km/s
 direction = "above"
 lookback_minutes = 30
@@ -134,6 +136,7 @@ cooldown_minutes = 60
 
 [solar_wind.density]
 enabled = true
+field = "density"
 threshold = 10.0                      # particles / cm^3
 direction = "above"
 lookback_minutes = 30
@@ -141,6 +144,7 @@ cooldown_minutes = 60
 
 [solar_wind.bt]
 enabled = true
+field = "bt"
 threshold = 40.0                      # nT, total field
 direction = "above"
 lookback_minutes = 30
@@ -148,6 +152,7 @@ cooldown_minutes = 60
 
 [solar_wind.bz]
 enabled = true
+field = "bz_gsm"
 threshold = -40.0                     # nT, GSM Bz
 direction = "below"
 lookback_minutes = 30
