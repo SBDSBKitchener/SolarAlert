@@ -1,0 +1,345 @@
+{
+ "checks": [
+  {
+   "candidates": 0,
+   "check": "check_flares",
+   "ok": true
+  },
+  {
+   "candidates": 0,
+   "check": "check_filaments",
+   "ok": true
+  },
+  {
+   "candidates": 0,
+   "check": "check_coronal_hole",
+   "ok": true
+  },
+  {
+   "candidates": 0,
+   "check": "check_storm_forecast",
+   "ok": true
+  },
+  {
+   "candidates": 0,
+   "check": "check_kp",
+   "ok": true
+  },
+  {
+   "candidates": 0,
+   "check": "check_protons",
+   "ok": true
+  },
+  {
+   "candidates": 1,
+   "check": "check_solar_wind",
+   "ok": true
+  },
+  {
+   "candidates": 0,
+   "check": "check_sunspots",
+   "ok": true
+  }
+ ],
+ "generated": "2026-10-17T20:34:31Z",
+ "new_alerts": [],
+ "notes": {
+  "coronal_hole": {
+   "issued": "2026-10-17T12:30:00Z",
+   "stream_sentences": [
+    {
+     "alert": false,
+     "text": "Solar wind parameters were slightly elevated under diminishing HSS activity."
+    },
+    {
+     "alert": false,
+     "text": "Solar wind conditions are expected to trend towards nominal levels as influences from a negative polarity CH HSS slowly wanes, with a return to near-background/ambient levels by 18 Oct."
+    },
+    {
+     "alert": false,
+     "text": "Mostly quiet conditions with isolated unsettled periods are expected on 17 Oct under diminishing CH HSS effects."
+    }
+   ]
+  },
+  "flares": {
+   "events": 23,
+   "strongest": [
+    {
+     "ar_noaanum": 4551,
+     "event_endtime": "2026-10-17T15:44:00",
+     "event_peaktime": "2026-10-17T15:40:00",
+     "event_starttime": "2026-10-17T15:36:00",
+     "fl_goescls": "C1.7",
+     "frm_name": "SSW Latest Events",
+     "hgs_x": 28,
+     "hgs_y": -10,
+     "type": "impulsive"
+    },
+    {
+     "ar_noaanum": 4557,
+     "event_endtime": "2026-10-17T12:45:00",
+     "event_peaktime": "2026-10-17T12:39:00",
+     "event_starttime": "2026-10-17T12:32:00",
+     "fl_goescls": "C1.5",
+     "frm_name": "SSW Latest Events",
+     "hgs_x": -6,
+     "hgs_y": 5,
+     "type": "impulsive"
+    },
+    {
+     "ar_noaanum": 4551,
+     "event_endtime": "2026-10-17T15:29:00",
+     "event_peaktime": "2026-10-17T15:26:00",
+     "event_starttime": "2026-10-17T15:22:00",
+     "fl_goescls": "C1.4",
+     "frm_name": "SSW Latest Events",
+     "hgs_x": 27,
+     "hgs_y": -11,
+     "type": "impulsive"
+    },
+    {
+     "ar_noaanum": 4551,
+     "event_endtime": "2026-10-17T20:34:16",
+     "event_peaktime": "2026-10-17T20:17:00",
+     "event_starttime": "2026-10-17T20:06:00",
+     "fl_goescls": "C1.2",
+     "frm_name": "SSW Latest Events",
+     "hgs_x": 28,
+     "hgs_y": -11,
+     "type": "impulsive"
+    },
+    {
+     "ar_noaanum": 14557,
+     "event_endtime": "2026-10-17T09:47:00",
+     "event_peaktime": "2026-10-17T09:41:00",
+     "event_starttime": "2026-10-17T09:32:00",
+     "fl_goescls": "B8.6",
+     "frm_name": "SWPC",
+     "hgs_x": -9,
+     "hgs_y": 5,
+     "type": "impulsive"
+    }
+   ],
+   "with_active_region": 18,
+   "with_class": 9,
+   "with_end_time": 23,
+   "with_position": 23
+  },
+  "sunspots": [
+   {
+    "earth_facing": true,
+    "flagged": false,
+    "location": "S15W32",
+    "mag_class": "BG",
+    "reasons": [],
+    "region": 4551,
+    "spot_class": "Eki"
+   },
+   {
+    "earth_facing": true,
+    "flagged": false,
+    "location": "N06W24",
+    "mag_class": "",
+    "reasons": [],
+    "region": 4553,
+    "spot_class": ""
+   },
+   {
+    "earth_facing": true,
+    "flagged": false,
+    "location": "N07W10",
+    "mag_class": "",
+    "reasons": [],
+    "region": 4554,
+    "spot_class": ""
+   },
+   {
+    "earth_facing": true,
+    "flagged": false,
+    "location": "N03E03",
+    "mag_class": "",
+    "reasons": [],
+    "region": 4556,
+    "spot_class": ""
+   },
+   {
+    "earth_facing": true,
+    "flagged": false,
+    "location": "N17E01",
+    "mag_class": "B",
+    "reasons": [],
+    "region": 4557,
+    "spot_class": "Dai"
+   }
+  ]
+ },
+ "sources": [
+  {
+   "bytes": 124765,
+   "newest": "2026-10-17T20:06:00Z",
+   "newest_row": {
+    "ar_polarity": null,
+    "comment_count": "0",
+    "event_coordsys": "UTC-HGS-TOPO",
+    "event_npixels": null,
+    "event_starttime": "2026-10-17T20:06:00",
+    "frm_humanflag": "false",
+    "frm_paramset": "AIA20261017_200600_0094.fits,AIA20261017_201312_0094.fits",
+    "gs_imageurl": "http://sdowww.lmsal.com/sdomedia/ssw/media/ssw/ssw_client/data/ssw_service_261016_074556_16696/www/ssw_cutout_193_context_full.gif",
+    "gs_thumburl": "http://sdowww.lmsal.com/sdomedia/ssw/media/ssw/ssw_client/data/ssw_service_261016_074556_16696/www/ssw_cutout_193_context_thumb.gif",
+    "hgc_coord": "POINT(100.277558 -11)",
+    "hpc_bbox": "POLYGON((16.870264 -78.887922,16.870264 -78.887922,16.870264 -78.887922,16.870264 -78.887922,16.870264 -78.887922))",
+    "hpc_coord": "POINT(445.22207399999996 -266.326998)",
+    "hrc_coord": "POINT(0.53913020844181 239.11259568851233)",
+    "obs_levelnum": null
+   },
+   "ok": true,
+   "oldest": "2026-10-17T09:32:00Z",
+   "rows": 23,
+   "seconds": 0.99,
+   "url": "https://www.lmsal.com/hek/her?cosec=2&cmd=search&type=column&event_type=FL&event_starttime=2026-10-17T08%3A34%3A31&event_endtime=2026-10-17T20%3A34%3A31&event_coordsys=helioprojective&x1=-1200&x2=1200&y1=-1200&y2=1200&result_limit=200"
+  },
+  {
+   "bytes": 65,
+   "ok": true,
+   "rows": 0,
+   "seconds": 0.49,
+   "url": "https://www.lmsal.com/hek/her?cosec=2&cmd=search&type=column&event_type=FE&event_starttime=2026-10-16T20%3A34%3A31&event_endtime=2026-10-17T20%3A34%3A31&event_coordsys=helioprojective&x1=-1200&x2=1200&y1=-1200&y2=1200&result_limit=200"
+  },
+  {
+   "bytes": 2638,
+   "ok": true,
+   "seconds": 0.23,
+   "url": "https://services.swpc.noaa.gov/text/discussion.txt"
+  },
+  {
+   "bytes": 52820,
+   "newest": "2026-10-17T20:14:23Z",
+   "newest_row": {
+    "issue_datetime": "2026-10-17 20:14:23.100",
+    "message": "Space Weather Message Code: WATA20\r\nSerial Number: 1130\r\nIssue Time: 2026 Oct 17 2014 UTC\r\n\r\nWATCH: Geomagnetic Storm Category G1 Predicted \nHighest Storm Level Predicted by Day:\nOct 18:  None (Below G1)   Oct 19:  None (Below G1)   Oct 20:  G1 (Minor)   \nTHIS SUPERSEDES ANY/ALL PRIOR WATCHES IN EFFECT\nComment: \r\n\r\nNOAA Space Weather Scale descriptions can be found at\r\nwww.swpc.noaa.gov/noaa-scales-explanation\r\n\r\nPotential Impacts: Area of impact primarily poleward of 60 degrees Geomagnetic Latitude.\r\nInduced Currents - Weak power grid fluctuations can occur.\r\nSpacecraft - Minor impact on satellite operations possible.\r\nAurora - Aurora may be visible at high latitudes, i.e., northern tier of the U.S. such as northern Michigan and Maine.",
+    "product_id": "A20F"
+   },
+   "ok": true,
+   "oldest": "2026-09-21T18:32:26Z",
+   "rows": 81,
+   "seconds": 0.06,
+   "url": "https://services.swpc.noaa.gov/products/alerts.json"
+  },
+  {
+   "bytes": 4803,
+   "newest": "2026-10-17T15:00:00Z",
+   "newest_row": {
+    "Kp": 2.67,
+    "a_running": 12,
+    "station_count": 8,
+    "time_tag": "2026-10-17T15:00:00"
+   },
+   "ok": true,
+   "oldest": "2026-10-10T00:00:00Z",
+   "rows": 62,
+   "seconds": 0.03,
+   "url": "https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json"
+  },
+  {
+   "bytes": 242309,
+   "energies": [
+    ">=1 MeV",
+    ">=10 MeV",
+    ">=100 MeV",
+    ">=30 MeV",
+    ">=5 MeV",
+    ">=50 MeV",
+    ">=500 MeV",
+    ">=60 MeV"
+   ],
+   "newest": "2026-10-17T20:25:00Z",
+   "newest_row": {
+    "energy": ">=1 MeV",
+    "flux": 7.222818851470947,
+    "satellite": 18,
+    "time_tag": "2026-10-17T20:25:00Z"
+   },
+   "ok": true,
+   "oldest": "2026-10-16T20:35:00Z",
+   "rows": 2296,
+   "seconds": 0.09,
+   "url": "https://services.swpc.noaa.gov/json/goes/primary/integral-protons-1-day.json"
+  },
+  {
+   "bytes": 2269832,
+   "newest": "2026-10-17T20:28:03Z",
+   "newest_row": {
+    "active": false,
+    "alpha_speed": null,
+    "proton_density": 16.69,
+    "proton_sample_size": 1,
+    "proton_speed": 431.55,
+    "proton_temperature": 882114,
+    "proton_vx_gse": null,
+    "proton_vx_gsm": null,
+    "proton_vy_gse": null,
+    "proton_vy_gsm": null,
+    "proton_vz_gse": null,
+    "proton_vz_gsm": null,
+    "source": "IMAP",
+    "time_tag": "2026-10-17T20:28:03"
+   },
+   "ok": true,
+   "oldest": "2026-10-16T20:32:00Z",
+   "rows": 3068,
+   "seconds": 0.15,
+   "url": "https://services.swpc.noaa.gov/json/rtsw/rtsw_wind_1m.json"
+  },
+  {
+   "bytes": 1372848,
+   "newest": "2026-10-17T20:29:01Z",
+   "newest_row": {
+    "active": false,
+    "bt": 2.62,
+    "bx_gse": -0.57,
+    "by_gse": -0.13,
+    "bz_gse": 2.54,
+    "manual_mode": false,
+    "phi_gse": 190.13,
+    "range": null,
+    "sample_size": 60,
+    "scale": null,
+    "sensitivity": null,
+    "source": "IMAP",
+    "theta_gse": 75.37,
+    "time_tag": "2026-10-17T20:29:01"
+   },
+   "ok": true,
+   "oldest": "2026-10-16T20:32:00Z",
+   "rows": 3254,
+   "seconds": 0.16,
+   "url": "https://services.swpc.noaa.gov/json/rtsw/rtsw_mag_1m.json"
+  },
+  {
+   "bytes": 123249,
+   "newest": "2026-10-17T00:00:00Z",
+   "newest_row": {
+    "area": null,
+    "carrington_longitude": 80,
+    "extent": null,
+    "latitude": 7,
+    "location": "N07W10",
+    "longitude": -10,
+    "mag_class": null,
+    "mag_string": null,
+    "number_spots": null,
+    "observed_date": "2026-10-17",
+    "old_carrington_longitude": 78,
+    "region": 4554,
+    "spot_class": null,
+    "status": "f"
+   },
+   "ok": true,
+   "oldest": "2026-09-18T00:00:00Z",
+   "rows": 214,
+   "seconds": 0.07,
+   "url": "https://services.swpc.noaa.gov/json/solar_regions.json"
+  }
+ ]
+}

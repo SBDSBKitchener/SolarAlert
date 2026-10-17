@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+<channel>
+<title>Solar &amp; Geomagnetic Alerts</title>
+<link>https://SBDSBKitchener.github.io/SolarAlert/</link>
+<description>Significant solar flares, filament eruptions, geomagnetic, proton and solar wind alerts.</description>
+<language>en</language>
+<ttl>5</ttl>
+<atom:link href="https://SBDSBKitchener.github.io/SolarAlert/feed.xml" rel="self" type="application/rss+xml"/>
+<lastBuildDate>Sat, 17 Oct 2026 18:12:57 +0000</lastBuildDate>
+<item>
+<title>Solar wind density: 10.03 p/cm³ (threshold &gt; 10)</title>
+<link>https://www.swpc.noaa.gov/products/real-time-solar-wind</link>
+<guid isPermaLink="false">solar_wind_density:2026-10-17T17:06:00Z</guid>
+<pubDate>Sat, 17 Oct 2026 17:06:00 +0000</pubDate>
+<category>Solar wind</category>
+<description>Solar wind density reached 10.03 p/cm³ at 2026-10-17 17:06 UTC (spike began 17:06), beyond the configured threshold (&gt; 10 p/cm³). Latest reading: 7.48 p/cm³.</description>
+</item>
+<item>
+<title>Solar wind density: 14.21 p/cm³ (threshold &gt; 10)</title>
+<link>https://www.swpc.noaa.gov/products/real-time-solar-wind</link>
+<guid isPermaLink="false">solar_wind_density:2026-10-16T23:59:00Z</guid>
+<pubDate>Fri, 16 Oct 2026 23:59:00 +0000</pubDate>
+<category>Solar wind</category>
+<description>Solar wind density reached 14.21 p/cm³ at 2026-10-16 23:59 UTC (spike began 23:59), beyond the configured threshold (&gt; 10 p/cm³). Latest reading: 3.72 p/cm³.</description>
+</item>
+<item>
+<title>WATCH: Sunspot AR4551 update, now also M/X flares already (Earth-facing, S14W19)</title>
+<link>https://www.swpc.noaa.gov/products/solar-region-summary</link>
+<guid isPermaLink="false">sunspot:4551:2026-10-16T00:00:00Z+flares</guid>
+<pubDate>Fri, 16 Oct 2026 00:00:00 +0000</pubDate>
+<category>Sunspot</category>
+<category>WATCH</category>
+<description>Sunspot region AR4551, already flagged as potentially dangerous, now also shows: 1 M/X-class flare already reported. All current attributes: BGD (beta-gamma-delta) magnetic classification; 1 M/X-class flare already reported. Level: WATCH. Based on NOAA's region summary for 2026-10-16 UTC.</description>
+</item>
+<item>
+<title>WARNING: Sunspot AR4551 update, now also rapid growth (Earth-facing, S15W05)</title>
+<link>https://www.swpc.noaa.gov/products/solar-region-summary</link>
+<guid isPermaLink="false">sunspot:4551:2026-10-15T00:00:00Z+growth</guid>
+<pubDate>Thu, 15 Oct 2026 00:00:00 +0000</pubDate>
+<category>Sunspot</category>
+<category>WARNING</category>
+<description>Sunspot region AR4551, already flagged as potentially dangerous, now also shows: rapid growth (area up 120 millionths in 1 day; McIntosh class Eki). All current attributes: BGD (beta-gamma-delta) magnetic classification; rapid growth (area up 120 millionths in 1 day; McIntosh class Eki); NOAA X-class flare probability 10%. Level: WARNING. Based on NOAA's region summary for 2026-10-15 UTC.</description>
+</item>
+<item>
+<title>Dangerous sunspot AR4551: beta-gamma-delta magnetic class, Earth-facing (S15W05)</title>
+<link>https://www.swpc.noaa.gov/products/solar-region-summary</link>
+<guid isPermaLink="false">sunspot:4551:2026-10-15T00:00:00Z</guid>
+<pubDate>Thu, 15 Oct 2026 00:00:00 +0000</pubDate>
+<category>Sunspot</category>
+<description>Sunspot region AR4551 has a BGD (beta-gamma-delta) magnetic classification and is Earth-facing at S15W05, which makes large flares more likely. Sunspot class Eki; area 620 millionths; 32 spots. NOAA 24-hour flare probabilities: M-class 25%, X-class 10%. Based on NOAA's region summary for 2026-10-15 UTC.</description>
+</item>
+<item>
+<title>Coronal hole stream forecast to impact Earth</title>
+<link>https://www.swpc.noaa.gov/products/forecast-discussion</link>
+<guid isPermaLink="false">coronal_hole:2026-10-14T12:30:00Z</guid>
+<pubDate>Wed, 14 Oct 2026 12:30:00 +0000</pubDate>
+<category>Geomagnetic forecast</category>
+<description>SWPC forecast discussion (issued 2026-10-14 12:30 UTC): The greater than 2 MeV electron flux is expected to reach high levels on 15 and 16 Oct due to negative polarity CH HSS influences. Negative polarity CH HSS effects are anticipated to persist through 16 Oct, although, slowing diminishing over the course of 15 and 16 Oct.</description>
+</item>
+<item>
+<title>Coronal hole stream forecast to impact Earth</title>
+<link>https://www.swpc.noaa.gov/products/forecast-discussion</link>
+<guid isPermaLink="false">coronal_hole:2026-10-14T00:30:00Z</guid>
+<pubDate>Wed, 14 Oct 2026 00:30:00 +0000</pubDate>
+<category>Geomagnetic forecast</category>
+<description>SWPC forecast discussion (issued 2026-10-14 00:30 UTC): The greater than 2 MeV electron flux is expected to reach high levels on 14-15 Oct following negative polarity coronal hole high-speed stream (-CH HSS) influences, before returning to normal to moderate levels on 16 Oct. Solar wind parameters reflected negative polarity coronal hole high-speed stream (-CH HSS) influences, along with potential flanking CME influences early in the period. Negative polarity CH HSS effects are anticipated to persist through 14 Oct before subsiding early on 15 Oct.</description>
+</item>
+<item>
+<title>Coronal hole stream forecast to impact Earth</title>
+<link>https://www.swpc.noaa.gov/products/forecast-discussion</link>
+<guid isPermaLink="false">coronal_hole:2026-10-13T12:30:00Z</guid>
+<pubDate>Tue, 13 Oct 2026 12:30:00 +0000</pubDate>
+<category>Geomagnetic forecast</category>
+<description>SWPC forecast discussion (issued 2026-10-13 12:30 UTC): Solar wind parameters reflected likely negative polarity CH HSS influences. By 15 Oct, quiet to unsettled levels are expected to return as CH HSS/CME influence tapers off.</description>
+</item>
+</channel>
+</rss>
