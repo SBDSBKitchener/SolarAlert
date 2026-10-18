@@ -195,7 +195,7 @@ cooldown_minutes = 60
 [solar_wind.density]
 enabled = true
 field = "proton_density"
-threshold = 10.0                      # particles / cm^3
+threshold = 20.0                      # particles / cm^3
 direction = "above"
 lookback_minutes = 480
 cooldown_minutes = 60
