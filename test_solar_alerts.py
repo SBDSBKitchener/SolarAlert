@@ -243,7 +243,7 @@ class Geomagnetic(Base):
         url = self.cfg["geomagnetic"]["coronal_hole"]["url"]
         self.f.data[url] = (":Issued: 2026 Oct 13 0030 UTC\n"
                             "A recurrent coronal hole high speed stream (CH HSS) is expected to\n"
-                            "influence Earth on 14-15 Oct. No solar flares are expected.")
+                            "influence Earth on 14-15 Oct, reaching G3 (Strong) storm levels. No solar flares are expected.")
         new = self.cycle()
         self.assertEqual(len(new), 1)
         self.assertIn("Coronal hole", new[0].title)
@@ -654,10 +654,10 @@ REAL_ONGOING = {
                    "influences from the negative polarity CH HSS wane.",
 }
 ARRIVALS = [
-    "A recurrent positive polarity CH HSS is expected to arrive on 18 Oct.",
-    "Active conditions are likely on 19-20 Oct due to a positive polarity coronal hole high speed stream.",
+    "A recurrent positive polarity CH HSS is expected to arrive on 18 Oct. Storm levels up to G3 (Strong) are possible.",
+    "Active conditions reaching G3 (Strong) levels are likely on 19-20 Oct due to a positive polarity coronal hole high speed stream.",
     "Solar wind speeds are expected to increase to near 600 km/s late on 17 Oct as a positive polarity CH HSS "
-    "rotates into a geoeffective position.",
+    "rotates into a geoeffective position, with G4 (Severe) storming.",
 ]
 
 
@@ -680,6 +680,22 @@ class CoronalHole(Base):
             alerts, conds = self.direct("Solar Wind\n" + body)
             self.assertEqual(len(alerts), 1, body)
             self.assertTrue(conds["coronal_hole"])
+
+    def test_forecast_strength_must_reach_min_g_level(self):
+        weak = ("Active conditions late on 19 Oct are expected to increase to G1 (Minor) geomagnetic storm levels "
+                "on 20 Oct due to anticipated effects from a positive polarity CH HSS.")
+        g2 = weak.replace("G1 (Minor)", "G2 (Moderate)")
+        g3 = weak.replace("G1 (Minor)", "G3 (Strong)")
+        nolevel = "A positive polarity CH HSS is expected to arrive on 19 Oct."
+        later = nolevel + " Storm levels to G3 (Strong) are likely."
+        for body, expect in ((weak, 0), (g2, 0), (g3, 1), (nolevel, 0), (later, 1)):
+            alerts, conds = self.direct(body)
+            self.assertEqual(len(alerts), expect, body)
+            self.assertEqual(conds["coronal_hole"], bool(expect), body)
+        self.assertIn("G3", self.direct(g3)[0][0].title)
+        self.cfg["geomagnetic"]["coronal_hole"]["min_g_level"] = 1               # admin lowers the bar
+        self.assertEqual(len(self.direct(weak)[0]), 1)
+        self.assertEqual(self.direct(nolevel)[0], [])                            # no G-level named at all
 
     def test_new_stream_alerts_even_while_old_one_wanes(self):
         old = REAL_ONGOING["15 Oct 1230"]
@@ -705,6 +721,7 @@ class CoronalHole(Base):
         self.cycle()
         notes = sa._NOTES["coronal_hole"]["stream_sentences"]
         self.assertEqual([n["alert"] for n in notes], [False, False, True])
+        self.assertEqual(notes[-1]["forecast_g_level"], 3)
 
 
 class LongLookback(ProtonsAndWind):

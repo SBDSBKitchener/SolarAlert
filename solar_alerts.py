@@ -199,7 +199,7 @@ def _schema():
          ("geomagnetic.coronal_hole.enabled", "bool"), ("geomagnetic.coronal_hole.url", "str"),
          ("geomagnetic.coronal_hole.include_regex", "regex"),
          ("geomagnetic.coronal_hole.exclude_regex", "regex"),
-         ("geomagnetic.coronal_hole.cooldown_minutes", "num"),
+         ("geomagnetic.coronal_hole.cooldown_minutes", "num"), ("geomagnetic.coronal_hole.min_g_level", "int"),
          ("geomagnetic.storm_forecast.enabled", "bool"),
          ("geomagnetic.storm_forecast.alerts_url", "str"),
          ("geomagnetic.storm_forecast.min_g_level", "int"),
@@ -621,14 +621,21 @@ def check_coronal_hole(cfg, fetch, now):
     inc, exc = re.compile(c["include_regex"], re.I), re.compile(c["exclude_regex"], re.I)
     sentences = re.split(r"(?<=[.!?])\s+", " ".join(text.split()))
     stream = re.compile(r"coronal hole|CH HSS|high[- ]speed stream|\bHSS\b", re.I)
-    hits, notes = [], []
-    for sent in sentences:
+    g_re = re.compile(r"\bG([1-5])\b")
+    hits, notes, level = [], [], 0
+    for i, sent in enumerate(sentences):
         if not stream.search(sent):
             continue
-        ok = bool(inc.search(sent)) and not exc.search(sent)
-        notes.append({"alert": ok, "text": sent[:300]})
+        arrival = bool(inc.search(sent)) and not exc.search(sent)
+        # Forecast strength: the highest G-level named in the sentence, or failing that in the sentence after it
+        # (SWPC often words it "... HSS is expected to arrive. Storms to G2 (Moderate) are likely.").
+        g = max([int(x) for x in g_re.findall(sent)] or
+                [int(x) for x in g_re.findall(sentences[i + 1] if i + 1 < len(sentences) else "")] or [0])
+        ok = arrival and g >= c["min_g_level"]
+        notes.append({"alert": ok, "forecast_g_level": g or None, "arrival_wording": arrival, "text": sent[:300]})
         if ok:
             hits.append(sent)
+            level = max(level, g)
     _NOTES["coronal_hole"] = {"issued": iso(issued), "stream_sentences": notes[:12]}
     # The episode stays open while a discussion still announces an arrival, so the same
     # stream is not re-announced every 12 hours.
@@ -637,7 +644,7 @@ def check_coronal_hole(cfg, fetch, now):
         return [], conds
     return [Alert(
         key=f"coronal_hole:{iso(issued)}", category="Geomagnetic forecast",
-        title="Coronal hole stream forecast to impact Earth",
+        title=f"Coronal hole stream forecast to impact Earth (G{level} storm levels)",
         description="SWPC forecast discussion (issued %s UTC): %s" % (issued.strftime("%Y-%m-%d %H:%M"),
                                                                     " ".join(hits[:3])),
         link="https://www.swpc.noaa.gov/products/forecast-discussion", event_time=issued,

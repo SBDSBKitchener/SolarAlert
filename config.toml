@@ -127,6 +127,10 @@ url = "https://services.swpc.noaa.gov/text/discussion.txt"
 # Each run saves the stream sentences it saw, and why, to health.json on the state branch.
 include_regex = '(?:coronal holes?|CH HSS|high[- ]speed streams?|\bHSS\b).*(?:arriv|onset|\bbegin|rotat|(?:expected|anticipated|forecast|predicted|likely) to (?:impact|influence|affect|enhance|increase|become))|(?:arriv|onset|\bbegin|rotat|(?:expected|anticipated|forecast|predicted|likely) to (?:impact|influence|affect|enhance|increase|become)).*(?:coronal holes?|CH HSS|high[- ]speed streams?|\bHSS\b)|(?:enhanced|elevated|disturbed|increased|active|unsettled|stormy)\b.{0,80}\b(?:expected|anticipated|forecast|likely)\b.*(?:coronal holes?|CH HSS|high[- ]speed streams?|\bHSS\b)'
 exclude_regex = 'persist|continu|remain|\btaper|\bwan(?:e|es|ed|ing)\b|subsid|diminish|declin|decreas|weaken|\bfad(?:e|es|ed|ing)\b|\beas(?:e|es|ed|ing)\b|returns? to|no longer|not (?:expected|anticipated|forecast)|reflected|\b(?:no|neither|nor)\b.{0,40}(?:coronal holes?|CH HSS|high[- ]speed streams?|\bHSS\b)'
+# Forecast strength: the sentence (or the one after it) must name a storm level of at least min_g_level,
+# e.g. "... increase to G3 (Strong) geomagnetic storm levels ...". A stream with no G-level wording,
+# or a weaker one, is not alerted. 1 = alert on any stream that names a G-level.
+min_g_level = 3
 cooldown_minutes = 720
 
 [geomagnetic.storm_forecast]
