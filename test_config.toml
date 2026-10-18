@@ -171,6 +171,10 @@ lookback_minutes = 30
 cooldown_minutes = 360
 
 # ---------------------------------------------------------------- SOLAR WIND
+# Spike filters (per rule): readings with an absolute value above max_plausible are discarded as instrument
+# glitches (0 = off), then each reading is replaced by the median of the last smoothing_window one-minute
+# readings (1 = off). With 5, a glitch of one or two readings cannot trigger an alert; a real event must stay
+# beyond the threshold for about 3 minutes, so alerts arrive 2-3 minutes later. health.json reports what was dropped.
 # direction "above": value > threshold.  direction "below": value < threshold
 # (use "below" for Bz, so -40 means "more negative than -40 nT").
 
@@ -184,6 +188,8 @@ enabled = true
 field = "speed"
 threshold = 800.0                     # km/s
 direction = "above"
+smoothing_window = 5
+max_plausible = 2000
 lookback_minutes = 30
 cooldown_minutes = 60
 
@@ -192,6 +198,8 @@ enabled = true
 field = "density"
 threshold = 10.0                      # particles / cm^3
 direction = "above"
+smoothing_window = 5
+max_plausible = 100
 lookback_minutes = 30
 cooldown_minutes = 60
 
@@ -200,6 +208,8 @@ enabled = true
 field = "bt"
 threshold = 40.0                      # nT, total field
 direction = "above"
+smoothing_window = 5
+max_plausible = 200
 lookback_minutes = 30
 cooldown_minutes = 60
 
@@ -208,5 +218,7 @@ enabled = true
 field = "bz_gsm"
 threshold = -40.0                     # nT, GSM Bz
 direction = "below"
+smoothing_window = 5
+max_plausible = 200
 lookback_minutes = 30
 cooldown_minutes = 60

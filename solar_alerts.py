@@ -18,6 +18,7 @@ import math
 import os
 import re
 import sqlite3
+import statistics
 import sys
 import tempfile
 import time
@@ -223,7 +224,8 @@ def _schema():
           ("sunspots.growth_area_min_increase", "nonneg"), ("sunspots.growth_spots_min_increase", "nonneg"),
           ("sunspots.x_flare_probability_min", "nonneg"), ("sunspots.flare_history_min_events", "nonneg")]
     for r in ("speed", "density", "bt", "bz"):
-        s.append((f"solar_wind.{r}.field", "str"))
+        s += [(f"solar_wind.{r}.field", "str"), (f"solar_wind.{r}.smoothing_window", "posint"),
+              (f"solar_wind.{r}.max_plausible", "nonneg")]
     for r in THRESHOLD_RULES:
         s += [(f"{r}.enabled", "bool"), (f"{r}.threshold", "num"), (f"{r}.direction", "dir"),
               (f"{r}.lookback_minutes", "num"), (f"{r}.cooldown_minutes", "num")]
@@ -388,6 +390,20 @@ def threshold_alert(rule, rows, field, now, group, category, label, unit, link):
         t, v = parse_time(r.get("time_tag")), to_float(r.get(field))
         if t and v is not None and cutoff <= t <= now + timedelta(minutes=5):
             samples.append((t, v))
+    # Spike filters (solar wind): drop physically implausible readings, then replace each reading by the median
+    # of the last smoothing_window readings, so a glitch lasting fewer than half a window cannot cross the threshold.
+    cap, window = rule.get("max_plausible", 0), rule.get("smoothing_window", 1)
+    dropped = 0
+    if cap > 0:
+        kept = [x for x in samples if abs(x[1]) <= cap]
+        dropped, samples = len(samples) - len(kept), kept
+    if window > 1:
+        samples.sort()
+        # a reading is judged only once a full window of readings exists up to it; earlier ones are unsmoothed-out
+        samples = [(samples[i][0], statistics.median(v for _, v in samples[i - window + 1:i + 1]))
+                   for i in range(window - 1, len(samples))]
+    _NOTES.setdefault("solar_wind_filter", {})[group] = {"discarded_implausible": dropped, "smoothing_window": window,
+                                                         "max_plausible": cap or None, "readings_used": len(samples)}
     if not samples:
         return None, None                                  # no data: leave state unchanged
     above, thr = rule["direction"] == "above", rule["threshold"]

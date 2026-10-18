@@ -176,6 +176,10 @@ cooldown_minutes = 360
 # Sources: SWPC real-time solar wind (rtsw), one-minute rows from several spacecraft. only_active keeps
 # just the spacecraft SWPC flags as active. Do not use the old products/solar-wind files (removed or
 # single-reading). `field` names the column each rule reads.
+# Spike filters (per rule): readings with an absolute value above max_plausible are discarded as instrument
+# glitches (0 = off), then each reading is replaced by the median of the last smoothing_window one-minute
+# readings (1 = off). With 5, a glitch of one or two readings cannot trigger an alert; a real event must stay
+# beyond the threshold for about 3 minutes, so alerts arrive 2-3 minutes later. health.json reports what was dropped.
 # direction "above": value > threshold.  direction "below": value < threshold
 # (use "below" for Bz, so -40 means "more negative than -40 nT").
 
@@ -189,6 +193,8 @@ enabled = true
 field = "proton_speed"
 threshold = 800.0                     # km/s
 direction = "above"
+smoothing_window = 5
+max_plausible = 2000
 lookback_minutes = 480
 cooldown_minutes = 60
 
@@ -197,6 +203,8 @@ enabled = true
 field = "proton_density"
 threshold = 20.0                      # particles / cm^3
 direction = "above"
+smoothing_window = 5
+max_plausible = 100
 lookback_minutes = 480
 cooldown_minutes = 60
 
@@ -205,6 +213,8 @@ enabled = true
 field = "bt"
 threshold = 40.0                      # nT, total field
 direction = "above"
+smoothing_window = 5
+max_plausible = 200
 lookback_minutes = 480
 cooldown_minutes = 60
 
@@ -213,5 +223,7 @@ enabled = true
 field = "bz_gsm"
 threshold = -40.0                     # nT, GSM Bz
 direction = "below"
+smoothing_window = 5
+max_plausible = 200
 lookback_minutes = 480
 cooldown_minutes = 60

@@ -38,6 +38,8 @@ class Base(unittest.TestCase):
         self.cfg["runtime"]["database"] = os.path.join(self.tmp.name, "state", "t.db")   # health.json lands beside it
         self.store = sa.Store(self.cfg["runtime"]["database"])
         c = self.cfg
+        for r in ("speed", "density", "bt", "bz"):      # spike filters off here; SpikeFilter tests turn them on
+            c["solar_wind"][r]["smoothing_window"], c["solar_wind"][r]["max_plausible"] = 1, 0
         self.f = Fake(c)
         # every source empty by default
         self.f.data = {
@@ -722,6 +724,66 @@ class CoronalHole(Base):
         notes = sa._NOTES["coronal_hole"]["stream_sentences"]
         self.assertEqual([n["alert"] for n in notes], [False, False, True])
         self.assertEqual(notes[-1]["forecast_g_level"], 3)
+
+
+class SpikeFilter(Base):
+    """Anomalous one-minute spikes must not alert; sustained excursions must."""
+
+    def setUp(self):
+        super().setUp()
+        sw = self.cfg["solar_wind"]
+        for name, field in (("speed", "proton_speed"), ("density", "proton_density"), ("bt", "bt"), ("bz", "bz_gsm")):
+            sw[name].update(field=field, lookback_minutes=480, smoothing_window=5)
+        sw["speed"]["max_plausible"], sw["density"]["max_plausible"] = 2000, 100
+        self.plasma = sw["plasma_url"]
+
+    def series(self, speeds, density=3.0, end=2):
+        """speeds: one value per minute, oldest first, the last one `end` minutes ago."""
+        n = len(speeds)
+        self.f.data[self.plasma] = [{"time_tag": ts(end + n - 1 - i, "T"), "source": "S", "active": True,
+                                     "proton_speed": v, "proton_density": density} for i, v in enumerate(speeds)]
+        return self.cycle()
+
+    def test_single_and_double_spikes_are_ignored(self):
+        base = [500.0] * 10
+        self.assertEqual(self.series(base + [1500.0] + base), [])                 # 1 reading
+        self.assertEqual(self.series(base + [900.0, 950.0] + base), [])           # 2 readings
+        self.assertEqual(sa._NOTES["solar_wind_filter"]["solar_wind_speed"]["smoothing_window"], 5)
+
+    def test_sustained_excursion_alerts_once(self):
+        new = self.series([500.0] * 10 + [850.0, 870.0, 880.0, 890.0, 900.0])
+        self.assertEqual(len(new), 1, self.titles(new))
+        self.assertIn("km/s", new[0].title)
+        self.assertEqual(self.series([500.0] * 10 + [850.0, 870.0, 880.0, 890.0, 900.0]), [])
+
+    def test_three_readings_is_enough_but_two_is_not(self):
+        self.assertEqual(len(self.series([500.0] * 10 + [850.0, 860.0, 870.0], end=0)), 1)
+
+    def test_implausible_values_are_discarded_even_in_a_run(self):
+        # a glitching instrument reporting 5000 km/s for ten minutes is not a real storm
+        self.assertEqual(self.series([500.0] * 10 + [5000.0] * 10), [])
+        n = sa._NOTES["solar_wind_filter"]["solar_wind_speed"]
+        self.assertEqual(n["discarded_implausible"], 10)
+
+    def test_density_spike_filtered_and_cap_configurable(self):
+        d = lambda vals: [{"time_tag": ts(len(vals) - 1 - i, "T"), "source": "S", "active": True,
+                           "proton_speed": 400.0, "proton_density": v} for i, v in enumerate(vals)]
+        self.f.data[self.plasma] = d([5.0] * 10 + [60.0] + [5.0] * 5)
+        self.assertEqual(self.cycle(), [])
+        self.f.data[self.plasma] = d([5.0] * 10 + [60.0] * 5)
+        self.assertEqual(len(self.cycle()), 1)
+
+    def test_window_one_and_cap_zero_turn_the_filters_off(self):
+        sw = self.cfg["solar_wind"]
+        sw["speed"].update(smoothing_window=1, max_plausible=0)
+        self.assertEqual(len(self.series([500.0] * 10 + [1500.0] + [500.0] * 10)), 1)
+
+    def test_bad_filter_settings_rejected(self):
+        for key, bad in (("smoothing_window", 0), ("smoothing_window", "five"), ("max_plausible", -1)):
+            cfg = sa.load_config(os.path.join(HERE, "test_config.toml"))
+            cfg["solar_wind"]["speed"][key] = bad
+            with self.assertRaises(sa.ConfigError, msg=str((key, bad))):
+                sa.validate_config(cfg)
 
 
 class LongLookback(ProtonsAndWind):

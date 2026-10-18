@@ -104,7 +104,16 @@ Every rule has `enabled`; threshold rules also have `threshold`, `direction`
 | Forecast storm | `[geomagnetic.storm_forecast] min_g_level` |
 | Actual Kp | `[geomagnetic.kp] min_kp` (>=) |
 | Protons | `[protons.ge10mev]` (100 pfu), `[protons.ge100mev]` (1 pfu) |
-| Solar wind | `[solar_wind.speed / density / bt / bz]` (Bz uses `direction = "below"`) |
+| Solar wind | `[solar_wind.speed / density / bt / bz]` (Bz uses `direction = "below"`); spike filters per rule: `smoothing_window` (default 5 one-minute readings, median) and `max_plausible` (readings beyond it are discarded; defaults 2000 km/s, 100 /cm³, 200 nT). 1 / 0 turn them off |
+
+## Filtering solar wind spikes
+
+One-minute solar wind readings contain occasional instrument glitches. Two filters are applied to each solar wind rule before the threshold test:
+
+1. **Plausibility cap** (`max_plausible`): a reading whose absolute value exceeds it is discarded.
+2. **Rolling median** (`smoothing_window`, default 5): each reading is replaced by the median of the last 5, so a glitch of one or two readings cannot cross the threshold. A real event must stay beyond the threshold for about 3 minutes, so alerts arrive 2-3 minutes later.
+
+`health.json` (`solar_wind_filter`) shows how many readings were discarded and used for each rule. Protons are not filtered.
 
 ## Alert levels
 
