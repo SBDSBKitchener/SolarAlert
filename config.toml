@@ -224,6 +224,6 @@ field = "bz_gsm"
 threshold = -50.0                     # nT, GSM Bz
 direction = "below"
 smoothing_window = 5
-max_plausible = -200
+max_plausible = 200
 lookback_minutes = 480
 cooldown_minutes = 60
