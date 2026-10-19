@@ -179,6 +179,30 @@ class SolarEvents(Base):
         self.assertIn("update", upd[0].title)
         self.assertEqual(self.flare(self.ev("X1.5", 10, kb="p", duration=25)), [])
 
+    def test_pending_flare_is_assumed_impulsive_then_alerts_when_long_duration(self):
+        fl = self.cfg["flares"]
+        fl["impulsive"].update(warning_min_class="X3.0", alert_min_class="X5.0")
+        fl["long_duration"].update(warning_min_class="X1.5", alert_min_class="X3.0")
+        self.assertEqual(self.flare(self.ev("X2.0", 10, kb="z")), [])                    # pending: impulsive rules, nothing
+        self.assertEqual(self.flare(self.ev("X2.0", 10, kb="z", duration=20)), [])       # impulsive: still nothing
+        new = self.flare(self.ev("X2.0", 10, kb="z", duration=90))                       # now long-duration
+        self.assertEqual(len(new), 1, self.titles(new))
+        self.assertEqual(new[0].level, "warning")
+        self.assertIn("long-duration", new[0].title)
+        self.assertNotIn("update", new[0].title)
+        self.assertEqual(self.flare(self.ev("X2.0", 10, kb="z", duration=90)), [])
+
+    def test_pending_flare_above_impulsive_threshold_is_reported_then_updated_to_long_duration(self):
+        fl = self.cfg["flares"]
+        fl["impulsive"].update(warning_min_class="X1.0", alert_min_class="X5.0")
+        fl["long_duration"].update(warning_min_class="X1.5", alert_min_class="X3.0")
+        first = self.flare(self.ev("X3.5", 10, kb="y"))
+        self.assertEqual(first[0].level, "warning")
+        self.assertIn("pending", first[0].title)
+        upd = self.flare(self.ev("X3.5", 10, kb="y", duration=90))
+        self.assertEqual(upd[0].level, "alert")                                          # long-duration ALERT is X3.0
+        self.assertIn("Previously reported as WARNING", upd[0].description)
+
     def test_unfinished_flare_past_the_limit_is_long_duration(self):
         new = self.flare(self.ev("M6.0", 10, kb="q", minutes_ago=5))
         self.assertIn("pending", new[0].title)

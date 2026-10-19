@@ -33,8 +33,10 @@ url = "https://www.lmsal.com/hek/her"
 #   WARNING  class >= warning_min_class          ALERT  class >= alert_min_class
 # A class of "off" disables that level for that type. Defaults: M5.0 and above is a WARNING, X1.0 and above an ALERT.
 # Type comes from the HEK start/end times: duration >= long_duration_min_minutes is "long-duration", shorter is
-# "impulsive". Until a flare's end is reported its type is "pending": it is judged by the more sensitive of the two
-# sets of thresholds and an update is posted when the type is known (including any change of level).
+# "impulsive". Until a flare's end is reported its type is "pending" and it is assumed impulsive: judged by the
+# impulsive thresholds only. Long-duration thresholds apply once the flare is known to be long-duration (its end
+# was reported after long_duration_min_minutes, or it is still going after that long), when a new alert (or an
+# update, if it had already been reported as impulsive) is issued.
 # Positions come from HEK (hgs_x/hgs_y); events with no position are handled by unknown_location.
 
 [flares]

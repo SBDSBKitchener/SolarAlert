@@ -130,9 +130,11 @@ A region's level is the highest among the attributes it meets, and an update ale
 ## Impulsive and long-duration flares
 
 Flares are typed from the HEK start and end times: `long_duration_min_minutes` or longer is long-duration, shorter is impulsive.
-While the end has not been reported the type is *pending*: the flare is judged by the more sensitive of the two sets of
-thresholds, and an update alert follows when the type is known (it also reports a changed level). A flare still going after
-`long_duration_min_minutes` is long-duration straight away. Thresholds are set separately per type, so for example
+While the end has not been reported the type is *pending* and the flare is assumed impulsive: only the impulsive
+thresholds apply. Once the flare is known to be long-duration (its end was reported after `long_duration_min_minutes`,
+or it is still going after that long) the long-duration thresholds apply, and a flare that is now above them is
+alerted at that point (or updated, if it had already been reported as impulsive). So with the defaults an X2.0 flare
+raises nothing while pending or impulsive, and a WARNING when it turns out to be long-duration. Thresholds are set separately per type, so for example
 `[flares.long_duration] warning_min_class = "X1.0"` stops long-duration M flares from warning. Flare records from different
 HEK sources are merged so a missing end time, position or active region is taken from another source.
 Real HEK timing fields are listed under `flares` in `health.json`.

@@ -467,17 +467,15 @@ def flare_duration_type(ev, now, long_min):
 
 
 def flare_level(c, flux, ftype):
-    """Highest level a flare of this GOES flux reaches. A flare whose type is not known yet is judged by the
-    more sensitive of the impulsive and long-duration thresholds. A class of "off" disables that level."""
-    keys = [FLARE_TYPE_KEY[ftype]] if ftype in FLARE_TYPE_KEY else list(FLARE_TYPE_KEY.values())
-    best = None
-    for k in keys:
-        for level in ("alert", "warning"):
-            thr = goes_flux(c[k][f"{level}_min_class"])     # None when "off"
-            if thr is not None and flux >= thr:
-                best = top_level([best, level])
-                break
-    return best
+    """Highest level a flare of this GOES flux reaches under the thresholds for its type. A flare whose type is
+    not known yet is assumed impulsive (long-duration thresholds apply only once it is known to be long-duration).
+    A class of "off" disables that level."""
+    k = FLARE_TYPE_KEY.get(ftype, "impulsive")
+    for level in ("alert", "warning"):
+        thr = goes_flux(c[k][f"{level}_min_class"])          # None when "off"
+        if thr is not None and flux >= thr:
+            return level
+    return None
 
 
 def merge_flare_records(events):
@@ -522,8 +520,9 @@ def check_flares(cfg, fetch, now):
     """Earth-facing flares at WARNING or ALERT level, typed impulsive or long-duration.
 
     The level comes from the flare's GOES class against the thresholds for its type ([flares.impulsive] and
-    [flares.long_duration]). A flare whose type is not yet known is alerted using the more sensitive thresholds
-    and followed by an update when its type is known (the update also reports a changed level)."""
+    [flares.long_duration]). A flare whose type is not yet known is assumed impulsive; long-duration thresholds
+    apply only once it is known to be long-duration, at which point a new alert is issued (or an update, if it was
+    already reported as impulsive)."""
     c = cfg["flares"]
     if not c["enabled"]:
         return [], {}
@@ -564,7 +563,7 @@ def check_flares(cfg, fetch, now):
 
         def describe_type(ftype=ftype, mins=mins, start=start):
             if ftype == "pending":
-                return "duration type not yet known (the flare is still in progress or its end has not been reported)"
+                return "duration type not yet known, assumed impulsive until its end is reported"
             if mins is not None:
                 return f"{ftype} ({mins:.0f} minutes; long-duration is {long_min:g} minutes or more)"
             elapsed = (now - start).total_seconds() / 60 if start else long_min
@@ -596,7 +595,7 @@ def check_flares(cfg, fetch, now):
             title=f"{LEVEL_LABEL[level]}: {cls} {type_words}solar flare{pending_note}{ar_txt} ({where})",
             description=f"A {cls} class solar flare{ar_txt} peaked at {t:%Y-%m-%d %H:%M} UTC. Position: {where}. "
                         f"Classified as {describe_type()}. {times}. Level: {LEVEL_LABEL[level]}"
-                        + (" (judged by the more sensitive thresholds until the type is known)" if ftype == "pending" else "")
+                        + (" (judged by the impulsive thresholds until the type is known)" if ftype == "pending" else "")
                         + f". Reported by: {ev.get('frm_name', 'unknown')}.",
             link=c["link"], event_time=t, near_minutes=15, group=group, cooldown_minutes=0,
             attrs=(ftype,), on_update=updater))
