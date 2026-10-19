@@ -155,7 +155,7 @@ lookback_hours = 12
 enabled = true
 url = "https://services.swpc.noaa.gov/json/goes/primary/integral-protons-1-day.json"
 energy = ">=10 MeV"
-threshold = 100.0
+threshold = 200.0
 direction = "above"
 lookback_minutes = 480
 cooldown_minutes = 360
