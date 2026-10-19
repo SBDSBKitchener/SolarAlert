@@ -51,7 +51,8 @@ warning_min_class = "X3.0"
 alert_min_class = "X5.0"
 
 [flares.long_duration]
-warning_min_class = "X1.0"
+# X1.5 is the same strength as the January 2026 flare that produced aurora at 15 degrees latitude.
+warning_min_class = "X1.5"
 alert_min_class = "X3.0"
 
 [filaments]
