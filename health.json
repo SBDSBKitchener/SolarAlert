@@ -1,0 +1,349 @@
+{
+ "checks": [
+  {
+   "candidates": 0,
+   "check": "check_flares",
+   "ok": true
+  },
+  {
+   "candidates": 0,
+   "check": "check_filaments",
+   "ok": true
+  },
+  {
+   "candidates": 0,
+   "check": "check_coronal_hole",
+   "ok": true
+  },
+  {
+   "candidates": 0,
+   "check": "check_storm_forecast",
+   "ok": true
+  },
+  {
+   "candidates": 0,
+   "check": "check_kp",
+   "ok": true
+  },
+  {
+   "candidates": 0,
+   "check": "check_protons",
+   "ok": true
+  },
+  {
+   "candidates": 0,
+   "check": "check_solar_wind",
+   "ok": true
+  },
+  {
+   "candidates": 0,
+   "check": "check_sunspots",
+   "ok": true
+  }
+ ],
+ "generated": "2026-10-24T13:15:04Z",
+ "new_alerts": [],
+ "notes": {
+  "coronal_hole": {
+   "issued": "2026-10-24T12:30:00Z",
+   "stream_sentences": [
+    {
+     "alert": false,
+     "arrival_wording": false,
+     "forecast_g_level": null,
+     "text": "Solar wind parameters reflected diminishing positive polarity CH HSS influences."
+    },
+    {
+     "alert": false,
+     "arrival_wording": true,
+     "forecast_g_level": null,
+     "text": "Enhanced solar wind conditions are likely on 25-26 Oct due to combined influences of a negative polarity CH HSS and possible glancing CME effects from the 21 Oct eruptions."
+    },
+    {
+     "alert": false,
+     "arrival_wording": false,
+     "forecast_g_level": 1,
+     "text": "Quiet to unsettled conditions are expected on 24 Oct as CH HSS influences wane."
+    },
+    {
+     "alert": false,
+     "arrival_wording": true,
+     "forecast_g_level": 1,
+     "text": "Periods of active conditions, with a chance for G1 (Minor) storming, are anticipated on 25-26 Oct due to combined effects from a negative polarity coronal hole and potential glancing CME impacts."
+    }
+   ]
+  },
+  "flares": {
+   "events": 7,
+   "strongest": [
+    {
+     "ar_noaanum": 4560,
+     "event_endtime": "2026-10-24T06:55:00",
+     "event_peaktime": "2026-10-24T06:44:00",
+     "event_starttime": "2026-10-24T06:33:00",
+     "fl_goescls": "C1.0",
+     "frm_name": "SSW Latest Events",
+     "hgs_x": 62,
+     "hgs_y": 10,
+     "type": "impulsive"
+    },
+    {
+     "ar_noaanum": 14560,
+     "event_endtime": "2026-10-24T06:55:00",
+     "event_peaktime": "2026-10-24T06:44:00",
+     "event_starttime": "2026-10-24T06:33:00",
+     "fl_goescls": "C1.0",
+     "frm_name": "SWPC",
+     "hgs_x": 62,
+     "hgs_y": 10,
+     "type": "impulsive"
+    },
+    {
+     "ar_noaanum": 4560,
+     "event_endtime": "2026-10-24T04:21:00",
+     "event_peaktime": "2026-10-24T04:18:00",
+     "event_starttime": "2026-10-24T04:11:00",
+     "fl_goescls": "B7.6",
+     "frm_name": "SSW Latest Events",
+     "hgs_x": 61,
+     "hgs_y": 13,
+     "type": "impulsive"
+    },
+    {
+     "ar_noaanum": 14560,
+     "event_endtime": "2026-10-24T04:21:00",
+     "event_peaktime": "2026-10-24T04:18:00",
+     "event_starttime": "2026-10-24T04:11:00",
+     "fl_goescls": "B7.5",
+     "frm_name": "SWPC",
+     "hgs_x": 59.372392,
+     "hgs_y": 14.125061,
+     "type": "impulsive"
+    },
+    {
+     "ar_noaanum": null,
+     "event_endtime": "2026-10-24T03:34:08",
+     "event_peaktime": "2026-10-24T03:32:44",
+     "event_starttime": "2026-10-24T03:31:32",
+     "fl_goescls": "",
+     "frm_name": "Flare Detective - Trigger Module",
+     "hgs_x": 51.278783,
+     "hgs_y": 14.712711,
+     "type": "impulsive"
+    }
+   ],
+   "with_active_region": 5,
+   "with_class": 4,
+   "with_end_time": 7,
+   "with_position": 7
+  },
+  "solar_wind_filter": {
+   "protons_ge100mev": {
+    "discarded_implausible": 0,
+    "max_plausible": null,
+    "readings_used": 94,
+    "smoothing_window": 1
+   },
+   "protons_ge10mev": {
+    "discarded_implausible": 0,
+    "max_plausible": null,
+    "readings_used": 94,
+    "smoothing_window": 1
+   },
+   "solar_wind_bt": {
+    "discarded_implausible": 0,
+    "max_plausible": 200,
+    "readings_used": 437,
+    "smoothing_window": 5
+   },
+   "solar_wind_bz": {
+    "discarded_implausible": 0,
+    "max_plausible": 200,
+    "readings_used": 437,
+    "smoothing_window": 5
+   },
+   "solar_wind_density": {
+    "discarded_implausible": 0,
+    "max_plausible": 100,
+    "readings_used": 317,
+    "smoothing_window": 5
+   },
+   "solar_wind_speed": {
+    "discarded_implausible": 0,
+    "max_plausible": 3000,
+    "readings_used": 317,
+    "smoothing_window": 5
+   }
+  },
+  "sunspots": []
+ },
+ "sources": [
+  {
+   "bytes": 36130,
+   "newest": "2026-10-24T06:33:00Z",
+   "newest_row": {
+    "ar_polarity": null,
+    "comment_count": "0",
+    "event_coordsys": "UTC-HGS-TOPO",
+    "event_npixels": null,
+    "event_starttime": "2026-10-24T06:33:00",
+    "frm_humanflag": "false",
+    "frm_paramset": "AIA20261024_063300_0094.fits,AIA20261024_064500_0094.fits",
+    "gs_imageurl": "http://sdowww.lmsal.com/sdomedia/ssw/media/ssw/ssw_client/data/ssw_service_261022_122755_36542/www/ssw_cutout_193_context_full.gif",
+    "gs_thumburl": "http://sdowww.lmsal.com/sdomedia/ssw/media/ssw/ssw_client/data/ssw_service_261022_122755_36542/www/ssw_cutout_193_context_thumb.gif",
+    "hgc_coord": "POINT(49.398810000000026 10)",
+    "hpc_bbox": "POLYGON((16.901373 -69.97818,16.901373 -69.97818,16.901373 -69.97818,16.901373 -69.97818,16.901373 -69.97818))",
+    "hpc_coord": "POINT(840.14688 127.05297)",
+    "hrc_coord": "POINT(0.88138304147686 278.5995133243926)",
+    "obs_levelnum": null
+   },
+   "ok": true,
+   "oldest": "2026-10-24T03:31:32Z",
+   "rows": 7,
+   "seconds": 0.84,
+   "url": "https://www.lmsal.com/hek/her?cosec=2&cmd=search&type=column&event_type=FL&event_starttime=2026-10-24T01%3A15%3A04&event_endtime=2026-10-24T13%3A15%3A04&event_coordsys=helioprojective&x1=-1200&x2=1200&y1=-1200&y2=1200&result_limit=200"
+  },
+  {
+   "bytes": 65,
+   "ok": true,
+   "rows": 0,
+   "seconds": 0.37,
+   "url": "https://www.lmsal.com/hek/her?cosec=2&cmd=search&type=column&event_type=FE&event_starttime=2026-10-23T13%3A15%3A04&event_endtime=2026-10-24T13%3A15%3A04&event_coordsys=helioprojective&x1=-1200&x2=1200&y1=-1200&y2=1200&result_limit=200"
+  },
+  {
+   "bytes": 2255,
+   "ok": true,
+   "seconds": 0.21,
+   "url": "https://services.swpc.noaa.gov/text/discussion.txt"
+  },
+  {
+   "bytes": 61909,
+   "newest": "2026-10-24T09:04:23Z",
+   "newest_row": {
+    "issue_datetime": "2026-10-24 09:04:23.307",
+    "message": "Space Weather Message Code: ALTEF3\r\nSerial Number: 3756\r\nIssue Time: 2026 Oct 24 0904 UTC\r\n\r\nCONTINUED ALERT: Electron 2MeV Integral Flux exceeded 1,000pfu\nContinuation of Serial Number: 3755\nBegin Time: 2026 Oct 23 1140 UTC\n\nYesterday Maximum 2MeV Flux: 3169 pfu\nMax time: 2026 Oct 23 1540 UTC",
+    "product_id": "EF3A"
+   },
+   "ok": true,
+   "oldest": "2026-09-24T14:30:01Z",
+   "rows": 95,
+   "seconds": 0.04,
+   "url": "https://services.swpc.noaa.gov/products/alerts.json"
+  },
+  {
+   "bytes": 4641,
+   "newest": "2026-10-24T09:00:00Z",
+   "newest_row": {
+    "Kp": 2.0,
+    "a_running": 7,
+    "station_count": 8,
+    "time_tag": "2026-10-24T09:00:00"
+   },
+   "ok": true,
+   "oldest": "2026-10-17T00:00:00Z",
+   "rows": 60,
+   "seconds": 0.03,
+   "url": "https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json"
+  },
+  {
+   "bytes": 242281,
+   "energies": [
+    ">=1 MeV",
+    ">=10 MeV",
+    ">=100 MeV",
+    ">=30 MeV",
+    ">=5 MeV",
+    ">=50 MeV",
+    ">=500 MeV",
+    ">=60 MeV"
+   ],
+   "newest": "2026-10-24T13:05:00Z",
+   "newest_row": {
+    "energy": ">=1 MeV",
+    "flux": 0.3256776034832001,
+    "satellite": 18,
+    "time_tag": "2026-10-24T13:05:00Z"
+   },
+   "ok": true,
+   "oldest": "2026-10-23T13:15:00Z",
+   "rows": 2296,
+   "seconds": 0.09,
+   "url": "https://services.swpc.noaa.gov/json/goes/primary/integral-protons-1-day.json"
+  },
+  {
+   "bytes": 2498587,
+   "newest": "2026-10-24T13:10:02Z",
+   "newest_row": {
+    "active": false,
+    "alpha_speed": null,
+    "proton_density": 3.97,
+    "proton_sample_size": 1,
+    "proton_speed": 416.41,
+    "proton_temperature": 56168,
+    "proton_vx_gse": null,
+    "proton_vx_gsm": null,
+    "proton_vy_gse": null,
+    "proton_vy_gsm": null,
+    "proton_vz_gse": null,
+    "proton_vz_gsm": null,
+    "source": "IMAP",
+    "time_tag": "2026-10-24T13:10:02"
+   },
+   "ok": true,
+   "oldest": "2026-10-23T13:14:00Z",
+   "rows": 3379,
+   "seconds": 0.12,
+   "url": "https://services.swpc.noaa.gov/json/rtsw/rtsw_wind_1m.json"
+  },
+  {
+   "bytes": 1491176,
+   "newest": "2026-10-24T13:11:00Z",
+   "newest_row": {
+    "active": false,
+    "bt": 3.8,
+    "bx_gse": 0.76,
+    "by_gse": 3.57,
+    "bz_gse": -1.02,
+    "manual_mode": false,
+    "phi_gse": 77.93,
+    "range": null,
+    "sample_size": 60,
+    "scale": null,
+    "sensitivity": null,
+    "source": "IMAP",
+    "theta_gse": -15.76,
+    "time_tag": "2026-10-24T13:11:00"
+   },
+   "ok": true,
+   "oldest": "2026-10-23T13:14:00Z",
+   "rows": 3528,
+   "seconds": 0.08,
+   "url": "https://services.swpc.noaa.gov/json/rtsw/rtsw_mag_1m.json"
+  },
+  {
+   "bytes": 120464,
+   "newest": "2026-10-24T00:00:00Z",
+   "newest_row": {
+    "area": 9,
+    "carrington_longitude": 75,
+    "extent": 8,
+    "latitude": 7,
+    "location": "N07W97",
+    "longitude": -97,
+    "mag_class": "B",
+    "mag_string": null,
+    "number_spots": 9,
+    "observed_date": "2026-10-24",
+    "old_carrington_longitude": 72,
+    "region": 4557,
+    "spot_class": "Dao",
+    "status": "d"
+   },
+   "ok": true,
+   "oldest": "2026-09-25T00:00:00Z",
+   "rows": 209,
+   "seconds": 0.28,
+   "url": "https://services.swpc.noaa.gov/json/solar_regions.json"
+  }
+ ]
+}
