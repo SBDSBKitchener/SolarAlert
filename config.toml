@@ -246,6 +246,10 @@ cooldown_minutes = 60
 #   17:08 UT (OMNI time) 1 Jan 2025 storm shock: speed +50, density x2.35, field x0.93 (the field was already high), temperature
 #     x1.33 -> WARNING thresholds set just below these (speed +45, any two of density x1.8, field x1.3, temperature x1.25).
 #   March 1989 (Quebec blackout): OMNI holds no plasma or field data for 12-14 March 1989, so it could not be used.
+#     Boteler (2019, Space Weather 17, doi 10.1029/2019SW002278) confirms there was no L1 monitor in 1989. Its values are
+#     estimates: shock transit speeds 760 and 1,320 km/s, and a modelled wind of about 550 km/s rising to about 983 km/s at the
+#     second shock (SSC 07:43 UT, 13 March). That is a jump of roughly 430 km/s, far above the ALERT speed_jump. The paper
+#     gives no density, field or temperature, so those ratios could not be checked against it.
 # Run over all of 2024 and 2025 these thresholds give 3 ALERT + 21 WARNING (2024) and 2 ALERT + 3 WARNING (2025)
 # detections; the OMNI files are missing about a third of the minutes, so real counts are somewhat higher. Replaying
 # the production detector on the OMNI minutes alerts about 10 minutes after each step and stays stable afterwards.
