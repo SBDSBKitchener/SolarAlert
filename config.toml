@@ -4,7 +4,7 @@
 
 [feed]
 title = "Solar & Geomagnetic Alerts"
-description = "Significant solar flares, filament eruptions, geomagnetic, proton and solar wind alerts."
+description = "Significant solar flares, solar eruptions, geomagnetic storms, radiation storms, solar wind shocks and power-grid risk. WATCH = worth keeping an eye on; WARNING = a significant event is likely or under way; ALERT = an extreme event. Times are UTC."
 link = "https://SBDSBKitchener.github.io/SolarAlert/"            # human-facing page (GitHub Pages URL)
 self_url = "https://SBDSBKitchener.github.io/SolarAlert/feed.xml"  # public URL of the feed itself
 output_path = "site/feed.xml"                              # published directory (GitHub Pages deploys site/)

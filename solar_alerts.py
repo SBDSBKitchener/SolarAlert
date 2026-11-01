@@ -94,7 +94,7 @@ def facing(lon, full_max, partial_max):
     if a <= full_max:
         return "Earth-facing"
     if a <= partial_max:
-        return "partially Earth-facing (near limb)"
+        return "partially Earth-facing (near the Sun's edge)"
     return None
 
 
@@ -314,6 +314,39 @@ LEVELS = ("watch", "warning", "alert")           # lowest to highest
 LEVEL_LABEL = {"watch": "WATCH", "warning": "WARNING", "alert": "ALERT"}
 
 
+LEVEL_MEANING = {"watch": "WATCH = something worth keeping an eye on",
+                 "warning": "WARNING = a significant event is likely or under way",
+                 "alert": "ALERT = an extreme event"}
+G_NAMES = {1: "Minor", 2: "Moderate", 3: "Strong", 4: "Severe", 5: "Extreme"}
+G_EFFECTS = {1: "Weak power grid fluctuations are possible and aurora may reach high latitudes.",
+             2: "Aurora may be seen at about 55 degrees geomagnetic latitude and high-latitude power systems may see voltage alarms.",
+             3: "Aurora may be seen at about 50 degrees geomagnetic latitude; satellites, GPS and radio may be affected and power systems may need voltage corrections.",
+             4: "Aurora may be seen as far south as about 45 degrees geomagnetic latitude; power grids, satellite navigation (GPS) and radio can be disrupted.",
+             5: "Aurora may be seen at very low latitudes; widespread power grid problems, satellite damage and radio and GPS outages are possible."}
+
+
+def g_text(g):
+    g = max(1, min(5, int(g)))
+    return f"{G_NAMES[g]} (G{g})"
+
+
+def an(word):
+    """'a' or 'an' for flare classes such as X2.1 or M6.0 (both start with a vowel sound)."""
+    return "an" if word[:1].upper() in "MX" else "a"
+
+
+STATION_NAMES = {"BOU": "Boulder, Colorado, USA", "FRD": "Fredericksburg, Virginia, USA",
+                 "NUR": "Nurmijarvi, Finland", "NGK": "Niemegk, Germany", "FUR": "Fuerstenfeldbruck, Germany",
+                 "HRN": "Hornsund, Svalbard, Norway", "BEL": "Belsk, Poland", "KAK": "Kakioka, Japan",
+                 "MMB": "Memambetsu, Japan", "KNY": "Kanoya, Japan", "CNB": "Canberra, Australia",
+                 "CTA": "Charters Towers, Australia", "KDU": "Kakadu, Australia", "EYR": "Eyrewell, New Zealand",
+                 "VSS": "Vassouras, Brazil"}
+
+
+def station_text(code):
+    return f"{STATION_NAMES[code]} ({code})" if code in STATION_NAMES else f"station {code}"
+
+
 def level_rank(level):
     return LEVELS.index(level) if level in LEVELS else -1
 
@@ -420,7 +453,7 @@ class Store:
 SPIKE_GAP = timedelta(minutes=30)     # breaching samples further apart than this are separate spikes
 
 
-def threshold_alert(rule, rows, field, now, group, category, label, unit, link):
+def threshold_alert(rule, rows, field, now, group, category, label, unit, link, headline=None, explain=""):
     cutoff = now - timedelta(minutes=rule["lookback_minutes"])
     samples = []
     for r in rows:
@@ -460,12 +493,12 @@ def threshold_alert(rule, rows, field, now, group, category, label, unit, link):
     latest = max(samples)[1]
     still = latest > thr if above else latest < thr       # the episode stays open only while still beyond
     op = ">" if above else "<"
+    side = "above" if above else "below"
     return Alert(
         key=f"{group}:{iso(start)}", category=category,
-        title=f"{label}: {v:g} {unit} (threshold {op} {thr:g})",
-        description=f"{label} reached {v:g} {unit} at {t:%Y-%m-%d %H:%M} UTC (spike began "
-                    f"{start:%H:%M}), beyond the configured threshold ({op} {thr:g} {unit}). "
-                    f"Latest reading: {latest:g} {unit}.",
+        title=f"{headline or label}: {v:g} {unit}",
+        description=f"{label} reached {v:g} {unit} at {t:%Y-%m-%d %H:%M} UTC (it first went {side} the alert "
+                    f"level of {thr:g} {unit} at {start:%H:%M} UTC). Latest reading: {latest:g} {unit}. {explain}".strip(),
         link=link, event_time=t, group=group, cooldown_minutes=rule["cooldown_minutes"]), still
 
 
@@ -598,27 +631,40 @@ def check_flares(cfg, fetch, now):
         times = f"Start {start:%H:%M}, " if start else ""
         times += f"peak {t:%H:%M}" + (f", end {end:%H:%M}" if end and start and end > start else "") + " UTC"
 
+        cme_note = "a type more often followed by a coronal mass ejection (a huge cloud of solar plasma)"
+
         def describe_type(ftype=ftype, mins=mins, start=start):
             if ftype == "pending":
-                return "duration type not yet known, assumed impulsive until its end is reported"
+                return ("The flare has not ended yet, so its length is not known; until it ends it is treated as a "
+                        "short (impulsive) flare.")
+            if mins is not None and ftype == "impulsive":
+                return (f"It lasted {mins:.0f} minutes, so it counts as a short (impulsive) flare. Flares lasting "
+                                        f"{long_min:g} minutes or more are called long-duration and are more often followed by "
+                                        f"a coronal mass ejection (a huge cloud of solar plasma).")
             if mins is not None:
-                return f"{ftype} ({mins:.0f} minutes; long-duration is {long_min:g} minutes or more)"
+                return f"It lasted {mins:.0f} minutes, so it counts as a long-duration flare, {cme_note}."
             elapsed = (now - start).total_seconds() / 60 if start else long_min
-            return f"long-duration (already lasting {elapsed:.0f} minutes and not yet ended)"
+            return (f"It has already lasted {elapsed:.0f} minutes and has not ended, so it counts as a "
+                    f"long-duration flare, {cme_note}.")
+
+        meaning = {"X": "X is the strongest class of solar flare; flares this size can black out high-frequency radio "
+                        "across the whole sunlit side of Earth.",
+                   "M": "M is the medium class of solar flare; flares this size can cause brief radio blackouts "
+                        "near the poles."}.get(cls[:1], "")
 
         def updater(fresh, seen, cls=cls, flux=flux, ftype=ftype, level=level, ar_txt=ar_txt, t=t,
                     times=times, describe_type=describe_type):
             before = top_level([flare_level(c, flux, x) for x in seen])
             if level is None:
-                head, tail = "UPDATE", (f"It is below the configured thresholds for {ftype} flares, so no alert "
-                                        f"level applies any more.")
+                head, tail = "UPDATE", (f"It is below the alert thresholds for {ftype} flares, so no alert level "
+                                        f"applies any more.")
             else:
                 head, tail = LEVEL_LABEL[level], f"Level: {LEVEL_LABEL[level]}."
             if level != before and before:
                 tail += f" Previously reported as {LEVEL_LABEL[before]}."
             return (f"{head}: {cls} solar flare{ar_txt} update, now classified {ftype if ftype != 'pending' else 'pending'}",
-                    f"The {cls} solar flare{ar_txt} that peaked at {t:%Y-%m-%d %H:%M} UTC is now classified as "
-                    f"{describe_type()}. {times}. {tail}", level or "")
+                    f"The {cls} solar flare{ar_txt} that peaked at {t:%Y-%m-%d %H:%M} UTC has been reclassified. "
+                    f"{describe_type()} {times}. {tail}", level or "")
 
         if level is None:                                               # only to close out a provisional alert
             alerts.append(Alert(key=f"flare:{kb}", category="Solar flare", title="", description="", link=c["link"],
@@ -630,9 +676,10 @@ def check_flares(cfg, fetch, now):
         alerts.append(Alert(
             key=f"flare:{kb}", category="Solar flare", level=level,
             title=f"{LEVEL_LABEL[level]}: {cls} {type_words}solar flare{pending_note}{ar_txt} ({where})",
-            description=f"A {cls} class solar flare{ar_txt} peaked at {t:%Y-%m-%d %H:%M} UTC. Position: {where}. "
-                        f"Classified as {describe_type()}. {times}. Level: {LEVEL_LABEL[level]}"
-                        + (" (judged by the impulsive thresholds until the type is known)" if ftype == "pending" else "")
+            description=f"{an(cls).capitalize()} {cls} solar flare{ar_txt} (a burst of radiation from the Sun) peaked at "
+                        f"{t:%Y-%m-%d %H:%M} UTC. Where on the Sun: {where}. {meaning} {describe_type()} {times}. "
+                        f"Level: {LEVEL_LABEL[level]}"
+                        + (" (judged by the short-flare thresholds until its length is known)" if ftype == "pending" else "")
                         + f". Reported by: {ev.get('frm_name', 'unknown')}.",
             link=c["link"], event_time=t, near_minutes=15, group=group, cooldown_minutes=0,
             attrs=(ftype,), on_update=updater))
@@ -653,9 +700,12 @@ def check_filaments(cfg, fetch, now):
         where = f"{fmt_loc(lon, lat)}, {label}" if lon is not None else "location not yet reported"
         alerts.append(Alert(
             key=f"filament:{ev.get('kb_archivid') or ev.get('ivorn') or iso(t)}", category="Filament eruption",
-            title=f"Filament eruption ({where})",
-            description=f"A filament eruption began at {t:%Y-%m-%d %H:%M} UTC. Position: {where}. "
-                        f"Reported by: {ev.get('frm_name', 'unknown')}. A CME may follow; check coronagraph imagery.",
+            title=f"Solar filament eruption ({where}); a coronal mass ejection may follow",
+            description=f"A solar filament (a long strand of cooler gas held above the Sun's surface) began erupting at "
+                        f"{t:%Y-%m-%d %H:%M} UTC. Where on the Sun: {where}. Eruptions like this can throw out a coronal "
+                        f"mass ejection (a huge cloud of solar plasma). Whether one was launched, and whether it is aimed "
+                        f"at Earth, is confirmed from satellite images over the next hours. No alert level applies yet. "
+                        f"Reported by: {ev.get('frm_name', 'unknown')}.",
             link=c["link"], event_time=t, near_minutes=30))
     return alerts, {}
 
@@ -697,9 +747,12 @@ def check_coronal_hole(cfg, fetch, now):
         return [], conds
     return [Alert(
         key=f"coronal_hole:{iso(issued)}", category="Geomagnetic forecast",
-        title=f"Coronal hole stream forecast to impact Earth (G{level} storm levels)",
-        description="SWPC forecast discussion (issued %s UTC): %s" % (issued.strftime("%Y-%m-%d %H:%M"),
-                                                                    " ".join(hits[:3])),
+        title=f"Fast solar wind stream from a coronal hole forecast to reach Earth: {g_text(level)} geomagnetic storm",
+        description=f"NOAA forecasts a stream of fast solar wind from a coronal hole (a dark opening in the Sun's outer "
+                    f"atmosphere) to reach Earth, and says it could drive geomagnetic storms up to {g_text(level)}. "
+                    f"{G_EFFECTS[level]} These storms are usually slower to build than those from eruptions. "
+                    f"NOAA's wording (forecast discussion issued {issued:%Y-%m-%d %H:%M} UTC): "
+                    + " ".join(re.sub(r"^:Issued:.*?UTC\s*", "", h) for h in hits[:3]),
         link="https://www.swpc.noaa.gov/products/forecast-discussion", event_time=issued,
         group="coronal_hole", cooldown_minutes=c["cooldown_minutes"])], conds
 
@@ -725,10 +778,14 @@ def check_storm_forecast(cfg, fetch, now):
     if not best:
         return [], {}
     t, level, text = best
+    body = "\n".join(l for l in text.splitlines()
+                     if not re.match(r"\s*(Space Weather Message Code|Serial Number|Issue Time)", l))
     return [Alert(
         key=f"storm_forecast:{iso(t)}", category="Geomagnetic forecast",
-        title=f"G{level} geomagnetic storm forecast",
-        description=f"SWPC issued {t:%Y-%m-%d %H:%M} UTC: " + " ".join(text.split())[:900],
+        title=f"{g_text(level)} geomagnetic storm forecast",
+        description=f"NOAA's Space Weather Prediction Center expects a {g_text(level)} geomagnetic storm (a disturbance "
+                    f"of Earth's magnetic field caused by the Sun). {G_EFFECTS[level]} "
+                    f"NOAA's message, issued {t:%Y-%m-%d %H:%M} UTC: " + " ".join(body.split())[:900],
         link="https://www.swpc.noaa.gov/products/alerts-watches-and-warnings", event_time=t,
         group="storm_forecast", cooldown_minutes=c["cooldown_minutes"])], {}
 
@@ -741,14 +798,25 @@ def check_kp(cfg, fetch, now):
     for r in table_rows(fetch.json(c["url"])):
         t, kp = parse_time(r.get("time_tag")), to_float(first_present(r, "Kp", "kp_index", "kp"))
         if t and kp is not None and t >= cutoff and kp >= c["min_kp"]:
-            g = max(1, int(kp + 0.5) - 4)
+            g = min(5, max(1, int(kp + 0.5) - 4))
             alerts.append(Alert(
                 key=f"kp:{iso(t)}", category="Geomagnetic storm",
-                title=f"Kp index {kp:g} observed (about G{g})",
-                description=f"Planetary Kp reached {kp:g} for the 3-hour period starting {t:%Y-%m-%d %H:%M} UTC "
-                            f"(alert threshold {c['min_kp']:g}).",
+                title=f"Geomagnetic storm under way: Kp {kp:g}, {g_text(g)} level",
+                description=f"Kp, the standard 0-9 scale of how disturbed Earth's magnetic field is, reached {kp:g} "
+                            f"for the 3-hour period starting {t:%Y-%m-%d %H:%M} UTC. That is a {g_text(g)} geomagnetic "
+                            f"storm. {G_EFFECTS[min(g, 5)]} (Alert threshold: Kp {c['min_kp']:g}.)",
                 link="https://www.swpc.noaa.gov/products/planetary-k-index", event_time=t))
     return alerts, {}
+
+
+PROTON_EXPLAIN = {
+    "ge10mev": "pfu means particles per square centimetre per second per steradian, the unit NOAA uses to count solar "
+               "protons passing the GOES satellites. Raised levels can harm satellite electronics and are a radiation "
+               "concern for astronauts and for polar flights, and can disturb high-frequency radio at the poles. "
+               "On NOAA's S scale, 10 pfu is S1 (Minor), 100 is S2, 1,000 is S3, 10,000 is S4 and 100,000 is S5.",
+    "ge100mev": "pfu means particles per square centimetre per second per steradian. Protons of 100 MeV and above are "
+                "the most penetrating; a rise means an unusually energetic radiation storm that matters for satellites, "
+                "astronauts and high-altitude flights."}
 
 
 def check_protons(cfg, fetch, now):
@@ -764,7 +832,9 @@ def check_protons(cfg, fetch, now):
         group = f"protons_{name}"
         a, breached = threshold_alert(rule, rows, "flux", now, group, "Solar radiation storm",
                                       f"Proton flux {rule['energy']}", "pfu",
-                                      "https://www.swpc.noaa.gov/products/goes-proton-flux")
+                                      "https://www.swpc.noaa.gov/products/goes-proton-flux",
+                                      headline=f"Solar radiation storm: high-energy protons ({rule['energy']})",
+                                      explain=PROTON_EXPLAIN[name])
         if a:
             alerts.append(a)
         if breached is not None:
@@ -776,6 +846,22 @@ SW_FIELDS = {"speed": ("plasma_url", "Solar wind speed", "km/s"),
              "density": ("plasma_url", "Solar wind density", "p/cm³"),
              "bt": ("mag_url", "IMF total field (Bt)", "nT"),
              "bz": ("mag_url", "IMF Bz (GSM)", "nT")}
+SW_PLAIN = {
+    "speed": ("Very fast solar wind",
+              "The solar wind is the stream of charged particles flowing from the Sun; it normally travels at about "
+              "300-500 km/s. A fast wind can drive geomagnetic storms."),
+    "density": ("Dense solar wind",
+                "Particle density (particles per cubic centimetre) is normally under 10. A dense wind pushes harder on "
+                "Earth's magnetic field, which can compress it and make storms stronger."),
+    "bt": ("Strong magnetic field in the solar wind (Bt)",
+           "This is the total strength of the magnetic field carried by the solar wind (the interplanetary magnetic field, "
+           "IMF), in nanotesla (nT); about 5 nT is typical. A strong field means more energy is available to drive "
+           "a geomagnetic storm."),
+    "bz": ("Solar wind magnetic field pointing strongly south (Bz)",
+           "Bz is the north-south part of the magnetic field carried by the solar wind. When it points south (negative) it "
+           "links up with Earth's magnetic field and lets solar wind energy in, which is the main driver of geomagnetic "
+           "storms; the more negative, the stronger the effect.")}
+SW_SOURCE = " These readings come from a NOAA spacecraft about 1.5 million km from Earth, so effects reach Earth in roughly 30-60 minutes."
 
 
 def active_rows(rows, only_active):
@@ -812,7 +898,8 @@ def check_solar_wind(cfg, fetch, now):
             continue
         group = f"solar_wind_{name}"
         a, breached = threshold_alert(rule, rows, field, now, group, "Solar wind", label, unit,
-                                      "https://www.swpc.noaa.gov/products/real-time-solar-wind")
+                                      "https://www.swpc.noaa.gov/products/real-time-solar-wind",
+                                      headline=SW_PLAIN[name][0], explain=SW_PLAIN[name][1] + SW_SOURCE)
         if a:
             alerts.append(a)
         if breached is not None:
@@ -869,7 +956,8 @@ def check_sunspots(cfg, fetch, now):
         spot_class = str(r.get("spot_class") or "").strip()
         why = []                                            # (code, short label, long explanation)
         if cls and cls in wanted:
-            why.append(("class", f"{name} magnetic class", f"{cls} ({name}) magnetic classification"))
+            why.append(("class", f"complex magnetic layout, {name}",
+                        f"a complex magnetic layout, class {cls} ({name}), the kind most likely to produce major flares"))
         prev = recs[-2] if len(recs) > 1 and (t - recs[-2][0]) <= timedelta(days=c["growth_window_days"]) else None
         growth_class_ok = spot_class.upper() in mcintosh
         if prev and growth_class_ok:
@@ -880,20 +968,21 @@ def check_sunspots(cfg, fetch, now):
             ds = n_now - n_prev if n_now is not None and n_prev is not None else None
             grew = []
             if c["growth_area_min_increase"] > 0 and da is not None and da / days >= c["growth_area_min_increase"]:
-                grew.append(f"area up {da:g} millionths")
+                grew.append(f"area up {da:g} millionths of the Sun's visible half")
             if c["growth_spots_min_increase"] > 0 and ds is not None and ds / days >= c["growth_spots_min_increase"]:
-                grew.append(f"{ds:g} more spots")
+                grew.append(f"{ds:g} more sunspots")
             if grew:
                 why.append(("growth", "rapid growth",
                             f"rapid growth ({', '.join(grew)} in {days} day{'s' if days > 1 else ''}; "
-                            f"McIntosh class {spot_class})"))
+                            f"it is a large, complex type of sunspot group, class {spot_class})"))
         xp = to_float(r.get("x_flare_probability"))
         if c["x_flare_probability_min"] > 0 and xp is not None and xp >= c["x_flare_probability_min"]:
-            why.append(("xprob", f"X-flare chance {xp:g}%", f"NOAA X-class flare probability {xp:g}%"))
+            why.append(("xprob", f"{xp:g}% chance of an X-class flare",
+                        f"NOAA gives it a {xp:g}% chance of producing an X-class (the strongest) flare in the next 24 hours"))
         nflares = (to_float(r.get("m_xray_events")) or 0) + (to_float(r.get("x_xray_events")) or 0)
         if c["flare_history_min_events"] > 0 and nflares >= c["flare_history_min_events"]:
-            why.append(("flares", "M/X flares already",
-                        f"{nflares:g} M/X-class flare{'s' if nflares != 1 else ''} already reported"))
+            why.append(("flares", "has already produced strong flares",
+                        f"it has already produced {nflares:g} medium or strong (M or X class) flare{'s' if nflares != 1 else ''}"))
         why = [w for w in why if c["levels"][w[0]] != "off"]          # an attribute set to "off" is ignored
         group = f"sunspot_{num}"
         breached = facing_now and bool(why)
@@ -906,12 +995,14 @@ def check_sunspots(cfg, fetch, now):
         where = loc or f"{abs(lon):g} deg from disk centre"
         extra = []
         if spot_class:
-            extra.append(f"Sunspot class {spot_class}")
+            extra.append(f"Shape class {spot_class}")
         if to_float(r.get("area")) is not None:
-            extra.append(f"area {r['area']} millionths")
+            extra.append(f"covers {r['area']} millionths of the Sun's visible half")
         if to_float(r.get("number_spots")) is not None:
             extra.append(f"{r['number_spots']} spots")
-        basis = f"Based on NOAA's region summary for {t:%Y-%m-%d} UTC."
+        basis = (f"Based on NOAA's region summary for {t:%Y-%m-%d} UTC (updated daily, so up to a day old). "
+                 f"Sunspot regions are where solar flares and eruptions come from; because this one faces Earth, "
+                 f"anything it throws out could be aimed our way.")
 
         level = top_level([c["levels"][w[0]] for w in why])
 
@@ -920,16 +1011,16 @@ def check_sunspots(cfg, fetch, now):
             before = top_level([c["levels"][x] for x in seen if x in c["levels"]])
             raised = (f" Level raised from {LEVEL_LABEL[before]} to {LEVEL_LABEL[level]}."
                       if before and level_rank(level) > level_rank(before) else f" Level: {LEVEL_LABEL[level]}.")
-            return (f"{LEVEL_LABEL[level]}: Sunspot AR{num} update, now also {', '.join(w[1] for w in news)} "
-                    f"(Earth-facing, {where})",
-                    f"Sunspot region AR{num}, already flagged as potentially dangerous, now also shows: "
-                    + "; ".join(w[2] for w in news) + ". All current attributes: "
+            return (f"{LEVEL_LABEL[level]}: Sunspot AR{num} update, now also: {'; '.join(w[1] for w in news)}",
+                    f"Sunspot region AR{num} (at {where} on the Sun, facing Earth) was already flagged as potentially "
+                    f"dangerous and now also has: " + "; ".join(w[2] for w in news) + ". Everything it has now: "
                     + "; ".join(w[2] for w in why) + f".{raised} {basis}", level)
 
         alerts.append(Alert(
             key=f"sunspot:{num}:{iso(t)}", category="Sunspot", level=level,
-            title=f"{LEVEL_LABEL[level]}: Sunspot AR{num}: {', '.join(w[1] for w in why)} (Earth-facing, {where})",
-            description=f"Level: {LEVEL_LABEL[level]}. Sunspot region AR{num} is Earth-facing at {where} and shows: "
+            title=f"{LEVEL_LABEL[level]}: Potentially dangerous sunspot AR{num} faces Earth, {where} ({'; '.join(w[1] for w in why)})",
+            description=f"Level: {LEVEL_LABEL[level]}. Sunspot region AR{num} (AR means active region; this is NOAA's "
+                        f"number for it) is facing Earth, at {where} on the Sun, and has: "
                         + "; ".join(w[2] for w in why) + ". "
                         + ("; ".join(extra) + ". " if extra else "") + basis,
             link=c["link"], event_time=t, group=group, cooldown_minutes=c["cooldown_minutes"],
@@ -1035,16 +1126,24 @@ def check_shock(cfg, fetch, now):
         arrival = t + timedelta(minutes=eta_min)
         ratios = ", ".join(f"{lbl} x{m[k]:.1f}" for lbl, k in (("density", "density_ratio"), ("field", "field_ratio"),
                                                               ("temperature", "temperature_ratio")) if m[k])
+        dist = f"{sc['distance_km'] / 1e6:g} million km"
+        parts = [f"{w} became {x:.1f} times {adj}" for x, w, adj in
+                 ((m["density_ratio"], "density", "higher"), (m["field_ratio"], "magnetic field", "stronger"),
+                  (m["temperature_ratio"], "temperature", "higher")) if x and x >= 1.1]
+        parts = ", ".join(parts[:-1]) + " and its " + parts[-1] if len(parts) > 1 else "".join(parts)
         alerts.append(Alert(
             key=f"shock:{iso(t)}", category="Solar wind shock", level=level, near_minutes=20,
-            title=f"{LEVEL_LABEL[level]}: Interplanetary shock at L1, speed {pre:.0f} to {post:.0f} km/s "
-                  f"(+{dv:.0f}); expected at Earth about {arrival:%H:%M} UTC",
-            description=f"A shock passed the L1 solar wind monitor at about {t:%Y-%m-%d %H:%M} UTC: speed rose from "
-                        f"{pre:.0f} to {post:.0f} km/s (+{dv:.0f}), and the jump persisted. Other jumps: {ratios}. "
-                        f"Level: {LEVEL_LABEL[level]}. It should reach Earth in roughly {eta_min:.0f} minutes (about "
-                        f"{arrival:%H:%M} UTC, give or take 15 minutes; the estimate uses the post-shock speed over "
-                        f"{sc['distance_km']:g} km). Expect a sudden impulse in the geomagnetic field on arrival, "
-                        f"possibly followed by a geomagnetic storm depending on the magnetic field direction.",
+            title=f"{LEVEL_LABEL[level]}: Shock wave in the solar wind heading for Earth, due about {arrival:%H:%M} UTC "
+                  f"(wind speed jumped from {pre:.0f} to {post:.0f} km/s)",
+            description=f"A shock wave (a sudden jump in the speed of the solar wind, usually driven by a coronal mass "
+                        f"ejection, a cloud thrown out by the Sun) passed the NOAA spacecraft about {dist} sunward of "
+                        f"Earth at about {t:%Y-%m-%d %H:%M} UTC. Solar wind speed rose from {pre:.0f} to {post:.0f} km/s "
+                        f"(+{dv:.0f}) and stayed up; at the same time its {parts}. "
+                        f"Level: {LEVEL_LABEL[level]}. It should reach Earth in roughly {eta_min:.0f} minutes, at about "
+                        f"{arrival:%H:%M} UTC (give or take 15 minutes). When it arrives, Earth's magnetic field will "
+                        f"be jolted suddenly (a 'sudden impulse'). Whether a geomagnetic storm follows depends on "
+                        f"whether the magnetic field carried behind the shock points south; watch for follow-up "
+                        f"storm alerts.",
             link=sc["link"], event_time=t))
     _NOTES["shock"] = {"candidates": notes[-8:]}
     return alerts, {}
@@ -1098,6 +1197,13 @@ def dbdt_series(rows, cap, window):
     return rates
 
 
+GIC_EXPLAIN = ("Why it matters: fast changes in Earth's magnetic field drive electric currents through the ground and into "
+               "long conductors such as power lines, pipelines and railway circuits (geomagnetically induced currents). "
+               "Strong ones can trip protection equipment, cause voltage problems or overheat transformers; the Quebec "
+               "blackout of March 1989 was caused this way. Whether a particular grid is affected depends on the grid "
+               "and the local rock beneath it.")
+
+
 def gic_episode(group, headline, unit, samples, warn, alert_at, cooldown, link, basis):
     """Turn samples [(time, value, where)] into one alert for the most recent excursion at or above `warn`:
     WARNING, raised to ALERT when a value reaches `alert_at`. Later runs announce a rise to ALERT as an update."""
@@ -1116,8 +1222,9 @@ def gic_episode(group, headline, unit, samples, warn, alert_at, cooldown, link, 
 
     def text(lv):
         thr = alert_at if lv == "alert" else warn
-        return (f"{headline(v, where)}. Level: {LEVEL_LABEL[lv]} (threshold {thr:g} {unit}). Peak {v:.0f} {unit} "
-                f"at {t:%Y-%m-%d %H:%M} UTC; the excursion began {start:%H:%M} UTC. {basis}")
+        return (f"{headline(v, where)}. Level: {LEVEL_LABEL[lv]} (the {LEVEL_LABEL[lv]} threshold is {thr:g} {unit}). "
+                f"The peak was {v:.0f} {unit} at {t:%Y-%m-%d %H:%M} UTC; it began at {start:%H:%M} UTC. {basis} "
+                f"{GIC_EXPLAIN}")
 
     def updater(fresh, seen):
         lv = top_level(reached + tuple(fresh))
@@ -1173,12 +1280,12 @@ def gic_dbdt(cfg, fetch, now):
                     for _, series, newest in stations)
         group = f"gic_dbdt_{_slug(region)}"
         conds[group] = still
-        a = gic_episode(group, lambda v, w, region=region: f"Rapid geomagnetic field change in {region}: "
-                                                          f"{v:.0f} nT/min at station {w}",
+        a = gic_episode(group, lambda v, w, region=region: f"Very rapid magnetic field change in {region}: "
+                                                          f"{v:.0f} nT/min measured at {station_text(w)}; "
+                                                          f"risk of currents in power grids",
                         "nT/min", samples, c["warning_threshold"], c["alert_threshold"], g["cooldown_minutes"], g["link"],
-                        f"Rate of change of the horizontal magnetic field measured at ground stations in {region} "
-                        f"(a stand-in for induced currents in power grids; the current in a particular grid depends on "
-                        f"local ground conductivity and the grid itself).")
+                        f"This is how fast the horizontal magnetic field changed, in nanotesla per minute (nT/min), "
+                        f"measured by ground observatories in {region}; on quiet days it is usually only a few nT/min or less.")
         if a:
             alerts.append(a)
     return alerts, conds
@@ -1238,10 +1345,12 @@ def gic_geoelectric(cfg, fetch, now):
         return [], {}
     group = "gic_geoelectric_na"
     still = max(samples)[1] >= c["warning_threshold"]
-    a = gic_episode(group, lambda v, w: f"Strong geoelectric field in the US and Canada: {v:.0f} mV/km near {w}",
+    a = gic_episode(group, lambda v, w: f"Strong electric field in the ground across the US and Canada: {v:.0f} mV/km near {w}; "
+                                          f"risk of currents in power grids",
                     "mV/km", samples, c["warning_threshold"], c["alert_threshold"], g["cooldown_minutes"], g["link"],
-                    f"NOAA SWPC 1D US-Canada geoelectric field model. The value shown is the strength reached or exceeded at "
-                    f"{c['min_points']} grid points, so one odd grid point cannot trigger an alert.")
+                    f"This is the electric field in the ground, in millivolts per kilometre (mV/km), from NOAA's geoelectric field "
+                    f"model for the US and Canada; values this high are far above normal. The value shown was reached or "
+                    f"exceeded at {c['min_points']} grid points, so one odd point cannot trigger an alert.")
     return ([a] if a else []), {group: still}
 
 

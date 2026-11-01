@@ -239,7 +239,7 @@ class SolarEvents(Base):
             self.ev(None, 15, kb="f1", typ="FE"), self.ev(None, 130, kb="f2", typ="FE", minutes_ago=300)]}
         new = self.cycle()
         self.assertEqual(len(new), 1)
-        self.assertIn("Filament eruption", new[0].title)
+        self.assertIn("Solar filament eruption", new[0].title)
 
 
 class Geomagnetic(Base):
@@ -263,12 +263,12 @@ class Geomagnetic(Base):
             {"issue_datetime": ts(30), "message": "Space Weather Message\nWATCH: Geomagnetic Storm Category G4 Predicted\nNOAA"},
             {"issue_datetime": ts(5000), "message": "WATCH: Geomagnetic Storm Category G5 Predicted"}]   # too old
         new = self.cycle()
-        self.assertEqual(self.titles(new), ["G4 geomagnetic storm forecast"])
+        self.assertEqual(self.titles(new), ["Severe (G4) geomagnetic storm forecast"])
 
     def test_storm_forecast_k_warning(self):
         url = self.cfg["geomagnetic"]["storm_forecast"]["alerts_url"]
         self.f.data[url] = [{"issue_datetime": ts(30), "message": "WARNING: Geomagnetic K-index of 8 expected"}]
-        self.assertEqual(self.titles(self.cycle()), ["G4 geomagnetic storm forecast"])
+        self.assertEqual(self.titles(self.cycle()), ["Severe (G4) geomagnetic storm forecast"])
 
     def test_coronal_hole(self):
         url = self.cfg["geomagnetic"]["coronal_hole"]["url"]
@@ -277,7 +277,7 @@ class Geomagnetic(Base):
                             "influence Earth on 14-15 Oct, reaching G3 (Strong) storm levels. No solar flares are expected.")
         new = self.cycle()
         self.assertEqual(len(new), 1)
-        self.assertIn("Coronal hole", new[0].title)
+        self.assertIn("coronal hole", new[0].title)
 
     def test_coronal_hole_negative_ignored(self):
         url = self.cfg["geomagnetic"]["coronal_hole"]["url"]
@@ -398,13 +398,13 @@ class Sunspots(Base):
     def test_ar4551_replay(self):
         obs, alert = self.replay()
         self.assertEqual(obs, "2026-10-14")          # E71/E61 are outside the 60 deg cone; 11-13 Oct met nothing
-        for part in ("AR4551", "beta-gamma-delta", "X-flare chance 10%", "Earth-facing", "S15E07"):
+        for part in ("AR4551", "beta-gamma-delta", "10% chance of an X-class flare", "faces Earth", "S15E07"):
             self.assertIn(part, alert.title)
         # Eki is in the default McIntosh list, so its growth counts; X-flare chance 10% makes it a WARNING
         self.assertIn("rapid growth", alert.title)
         self.assertTrue(alert.title.startswith("WARNING: "))
         self.assertEqual(alert.level, "warning")
-        self.assertIn("McIntosh class Eki", alert.description)
+        self.assertIn("class Eki", alert.description)
 
     def test_ar4551_replay_without_its_class_in_the_list(self):
         self.cfg["sunspots"]["mcintosh_classes"] = ["Fkc", "Ekc", "Fki"]
@@ -452,8 +452,8 @@ class Sunspots(Base):
     def test_description_lists_every_reason(self):
         new = self.flagged(self.rec(x_flare_probability=12, m_xray_events=2))
         d = new[0].description
-        for part in ("BGD (beta-gamma-delta) magnetic classification", "X-class flare probability 12%",
-                     "2 M/X-class flares already reported", "Earth-facing at S15E07"):
+        for part in ("class BGD (beta-gamma-delta)", "12% chance of producing an X-class",
+                     "2 medium or strong (M or X class) flares", "facing Earth, at S15E07"):
             self.assertIn(part, d)
         self.assertNotIn("M-class flare probability", d)
 
@@ -532,14 +532,14 @@ class Sunspots(Base):
     def test_newly_met_attribute_is_announced_once(self):
         first = self.poll(0, mag="B", x_flare_probability=12)                       # flagged by X chance only
         self.assertEqual(len(first), 1)
-        self.assertIn("X-flare chance 12%", first[0].title)
+        self.assertIn("12% chance of an X-class flare", first[0].title)
         upd = self.poll(1, mag="BGD", x_flare_probability=12)                       # class newly met
         self.assertEqual(len(upd), 1, self.titles(upd))
         self.assertIn("update", upd[0].title)
-        self.assertIn("beta-gamma-delta magnetic class", upd[0].title)
+        self.assertIn("complex magnetic layout, beta-gamma-delta", upd[0].title)
         self.assertNotIn("X-flare chance", upd[0].title)                              # already announced
         self.assertIn("already flagged", upd[0].description)
-        self.assertIn("X-class flare probability 12%", upd[0].description)           # full picture is in the body
+        self.assertIn("12% chance of producing an X-class", upd[0].description)           # full picture is in the body
         self.assertEqual(self.poll(2, mag="BGD", x_flare_probability=12), [])         # nothing new
         self.assertEqual(self.cycle(self.day(2)), [])                                 # same poll again: still nothing
 
@@ -547,8 +547,8 @@ class Sunspots(Base):
         self.poll(0, mag="B", x_flare_probability=12)
         upd = self.poll(1, mag="BGD", x_flare_probability=12, m_xray_events=2)
         self.assertEqual(len(upd), 1)
-        self.assertIn("beta-gamma-delta magnetic class", upd[0].title)
-        self.assertIn("M/X flares already", upd[0].title)
+        self.assertIn("complex magnetic layout, beta-gamma-delta", upd[0].title)
+        self.assertIn("has already produced strong flares", upd[0].title)
         # flares attribute drops out and returns later in the same episode: not announced again
         self.assertEqual(self.poll(2, mag="BGD", x_flare_probability=12, m_xray_events=0), [])
         self.assertEqual(self.poll(3, mag="BGD", x_flare_probability=12, m_xray_events=3), [])
@@ -561,7 +561,7 @@ class Sunspots(Base):
                            self.rec(days_ago=0, base=d1, mag="BGD", spot_class="Fkc", area=520, number_spots=9), now=d1)
         self.assertEqual(len(upd), 1)
         self.assertIn("rapid growth", upd[0].title)
-        self.assertIn("McIntosh class Fkc", upd[0].description)
+        self.assertIn("class Fkc", upd[0].description)
 
     def test_new_episode_announces_everything_again(self):
         self.poll(0, mag="BGD", x_flare_probability=12)
@@ -569,8 +569,8 @@ class Sunspots(Base):
         again = self.poll(3, mag="BGD", x_flare_probability=12)                     # cooldown (24 h) elapsed
         self.assertEqual(len(again), 1)
         self.assertNotIn("update", again[0].title)
-        self.assertIn("beta-gamma-delta magnetic class", again[0].title)
-        self.assertIn("X-flare chance 12%", again[0].title)
+        self.assertIn("complex magnetic layout, beta-gamma-delta", again[0].title)
+        self.assertIn("12% chance of an X-class flare", again[0].title)
 
     def test_update_respects_earth_facing(self):
         first = self.poll(0, mag="BGD", x_flare_probability=12)
@@ -586,7 +586,7 @@ class Sunspots(Base):
         self.assertEqual(self.poll(0, mag="BGD", x_flare_probability=12), [])        # no spurious "update"
         upd = self.poll(1, mag="BGD", x_flare_probability=12, m_xray_events=1)       # a genuinely new attribute
         self.assertEqual(len(upd), 1)
-        self.assertIn("M/X flares already", upd[0].title)
+        self.assertIn("has already produced strong flares", upd[0].title)
 
     # ---- geometry, age, other classes ---------------------------------------------------------------
     def test_must_be_earth_facing(self):
@@ -650,7 +650,7 @@ class Sunspots(Base):
         self.cycle()
         notes = {n["region"]: n for n in sa._NOTES["sunspots"]}
         self.assertTrue(notes[1]["flagged"])
-        self.assertIn("X-flare chance 12%", notes[1]["reasons"])
+        self.assertIn("12% chance of an X-class flare", notes[1]["reasons"])
         self.assertFalse(notes[2]["earth_facing"])
 
     def test_bad_sunspot_config_rejected(self):
@@ -842,9 +842,9 @@ class ShockArrival(Base):
         new = self.detect()
         self.assertEqual(len(new), 1, self.titles(new))
         self.assertEqual((new[0].level, new[0].title[:7]), ("alert", "ALERT: "))
-        self.assertIn("Interplanetary shock", new[0].title)
-        self.assertIn("expected at Earth about", new[0].title)
-        self.assertIn("density x2.3", new[0].description)
+        self.assertIn("Shock wave in the solar wind", new[0].title)
+        self.assertIn("due about", new[0].title)
+        self.assertIn("density became 2.3 times higher", new[0].description)
         self.assertIn("reach Earth in roughly 42 minutes", new[0].description)       # 1.5e6 km / 600 km/s
         self.assertEqual(new[0].event_time, NOW - timedelta(minutes=30))             # the minute the speed stepped up
 
