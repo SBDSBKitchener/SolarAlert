@@ -1067,6 +1067,77 @@ class GIC(Base):
                 sa.validate_config(cfg)
 
 
+class Coupling(Base):
+    """Kp >= 7 together with the solar wind field's Phi (GSM) angle below 160 degrees."""
+
+    def setup_data(self, kp, phis, kp_minutes_ago=60):
+        c = self.cfg
+        self.f.data[c["geomagnetic"]["kp"]["url"]] = []
+        self.prepend({c["geomagnetic"]["coupling"]["kp_url"]: [{"time_tag": ts(kp_minutes_ago, "T"), "Kp": kp}]})
+        n = len(phis)
+        mag = [{"time_tag": ts(n - i, "T"), "source": "A", "active": True, "bt": 10.0, "phi_gsm": p}
+               for i, p in enumerate(phis)]
+        self.prepend({c["solar_wind"]["mag_url"]: mag})
+
+    def found(self):
+        return [a for a in self.cycle() if a.group == "coupling"]
+
+    def test_fires_when_both_hold(self):
+        self.setup_data(7.33, [200.0] * 20 + [120.0] * 20)
+        new = self.found()
+        self.assertEqual(len(new), 1, self.titles(new))
+        self.assertEqual(new[0].level, "warning")
+        self.assertIn("Kp 7.33", new[0].title)
+        self.assertIn("120", new[0].title)
+        self.assertIn("below 160 degrees", new[0].description)
+        self.assertEqual(self.found(), [])                                      # not repeated
+
+    def test_needs_kp_and_needs_phi(self):
+        self.setup_data(6.67, [120.0] * 40)
+        self.assertEqual(self.found(), [])                                      # Kp too low
+        self.setup_data(8.0, [200.0] * 40)
+        self.assertEqual(self.found(), [])                                      # angle above 160
+
+    def test_brief_dip_is_ignored_and_it_must_last(self):
+        self.setup_data(8.0, [200.0] * 38 + [100.0, 100.0])
+        self.assertEqual(self.found(), [])                                      # only 2 minutes below
+        self.setup_data(8.0, [200.0] * 20 + [100.0] + [200.0] * 19)
+        self.assertEqual(self.found(), [])                                      # single glitch is smoothed out
+
+    def test_phi_computed_from_components_when_missing(self):
+        c = self.cfg
+        mag = [{"time_tag": ts(40 - i, "T"), "source": "A", "active": True, "bt": 10.0, "bx_gsm": -5.0, "by_gsm": 5.0}
+               for i in range(40)]                                              # atan2(5,-5) = 135 degrees
+        self.setup_data(8.0, [200.0] * 40)
+        self.prepend({c["solar_wind"]["mag_url"]: mag})
+        self.assertEqual(len(self.found()), 1)
+
+    def test_rearms_after_it_clears_and_cooldown(self):
+        self.setup_data(8.0, [120.0] * 40)
+        self.assertEqual(len(self.found()), 1)
+        self.setup_data(8.0, [200.0] * 40)
+        self.assertEqual(self.found(), [])                                      # clears the episode
+        self.setup_data(8.0, [120.0] * 40)
+        self.assertEqual(self.found(), [])                                      # inside the cooldown
+        later = NOW + timedelta(hours=4)
+        self.f.data[self.cfg["geomagnetic"]["coupling"]["kp_url"]] = [{"time_tag": ts(-180, "T"), "Kp": 8.0}]
+        mag = [{"time_tag": (later - timedelta(minutes=40 - i)).strftime("%Y-%m-%dT%H:%M:%S"), "source": "A",
+                "active": True, "bt": 10.0, "phi_gsm": 120.0} for i in range(40)]
+        self.prepend({self.cfg["solar_wind"]["mag_url"]: mag})
+        self.assertEqual(len([a for a in self.cycle(later) if a.group == "coupling"]), 0)  # cleared first
+        self.setup_data(8.0, [120.0] * 40)
+
+    def test_switch_and_level_and_validation(self):
+        self.setup_data(8.0, [120.0] * 40)
+        self.cfg["geomagnetic"]["coupling"]["enabled"] = False
+        self.assertEqual(self.found(), [])
+        self.cfg["geomagnetic"]["coupling"].update(enabled=True, level="alert")
+        self.assertEqual(self.found()[0].level, "alert")
+        del self.cfg["geomagnetic"]["coupling"]["phi_threshold"]
+        with self.assertRaises(sa.ConfigError):
+            sa.validate_config(self.cfg)
+
+
 class LongLookback(ProtonsAndWind):
     """The workflow may run only every few hours, so spikes between runs must still be found, once."""
 

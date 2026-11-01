@@ -211,6 +211,12 @@ def _schema():
          ("geomagnetic.storm_forecast.cooldown_minutes", "num"),
          ("geomagnetic.kp.enabled", "bool"), ("geomagnetic.kp.url", "str"),
          ("geomagnetic.kp.min_kp", "num"), ("geomagnetic.kp.lookback_hours", "num")]
+    s += [("geomagnetic.coupling.enabled", "bool"), ("geomagnetic.coupling.kp_url", "str"),
+          ("geomagnetic.coupling.min_kp", "num"), ("geomagnetic.coupling.kp_valid_hours", "num"),
+          ("geomagnetic.coupling.phi_field", "str"), ("geomagnetic.coupling.phi_threshold", "num"),
+          ("geomagnetic.coupling.smoothing_window", "posint"), ("geomagnetic.coupling.min_minutes", "posint"),
+          ("geomagnetic.coupling.lookback_minutes", "posint"), ("geomagnetic.coupling.cooldown_minutes", "nonneg"),
+          ("geomagnetic.coupling.level", "level"), ("geomagnetic.coupling.link", "str")]
     for sec in ("flares", "filaments"):
         s += [(f"{sec}.enabled", "bool"), (f"{sec}.lookback_hours", "num"),
               (f"{sec}.full_facing_max_longitude", "num"),
@@ -1374,8 +1380,74 @@ def check_gic(cfg, fetch, now):
     return alerts, conds
 
 
+def check_coupling(cfg, fetch, now):
+    """Magnetic coupling during a strong storm: Kp is at or above `min_kp` AND the solar wind field's Phi (GSM)
+    angle has dropped below `phi_threshold` degrees. Phi is the azimuth of the interplanetary magnetic field,
+    atan2(By, Bx) in GSM coordinates, 0-360 degrees, as plotted on NOAA's real-time solar wind page. The angle is
+    smoothed (median of `smoothing_window` minutes) and must stay below the threshold for `min_minutes`, so brief
+    dips do not count. The alert starts when both conditions are true, whichever came first, and ends when either
+    stops."""
+    c = cfg["geomagnetic"]["coupling"]
+    if not c["enabled"] or c["level"] == "off":
+        return [], {}
+    kp_now = None
+    for r in table_rows(fetch.json(c["kp_url"])):
+        t, kp = parse_time(r.get("time_tag")), to_float(first_present(r, "Kp", "kp_index", "kp"))
+        if t and kp is not None and now - timedelta(hours=c["kp_valid_hours"]) <= t <= now + timedelta(minutes=5):
+            if kp_now is None or kp > kp_now[1]:
+                kp_now = (t, kp)
+    pts = []
+    for r in rtsw_rows(cfg, fetch, "mag_url"):
+        t, phi = parse_time(r.get("time_tag")), to_float(r.get(c["phi_field"]))
+        if phi is None:
+            bx, by = to_float(r.get("bx_gsm")), to_float(r.get("by_gsm"))
+            if bx is not None and by is not None:
+                phi = math.degrees(math.atan2(by, bx)) % 360
+        if t and phi is not None and now - timedelta(minutes=c["lookback_minutes"]) <= t <= now + timedelta(minutes=5):
+            pts.append((t, phi))
+    pts.sort()
+    w = c["smoothing_window"]
+    smooth = [(pts[i][0], statistics.median(v for _, v in pts[i - w + 1:i + 1])) for i in range(w - 1, len(pts))]
+    kp_high = kp_now is not None and kp_now[1] >= c["min_kp"]
+    _NOTES["coupling"] = {"kp": None if kp_now is None else kp_now[1], "kp_high": kp_high,
+                          "latest_phi_gsm": round(smooth[-1][1], 1) if smooth else None,
+                          "phi_readings": len(pts)}
+    if not smooth:
+        return [], {}                                       # no data: leave state unchanged
+    thr = c["phi_threshold"]
+    run = []                                                # the latest unbroken stretch below the threshold
+    for t, v in reversed(smooth):
+        if v >= thr or (run and run[0][0] - t > timedelta(minutes=5)):
+            break
+        run.insert(0, (t, v))
+    lasted = (run[-1][0] - run[0][0]).total_seconds() / 60 + 1 if run else 0
+    below = bool(run) and smooth[-1][0] == run[-1][0] and lasted >= c["min_minutes"]
+    still = kp_high and bool(run) and smooth[-1][0] == run[-1][0]
+    if not (kp_high and below):
+        return [], {"coupling": still}
+    crossed = run[0][0]
+    began = max(crossed, kp_now[0])                         # when both conditions first held
+    latest = run[-1][1]
+    level = c["level"]
+    return [Alert(
+        key=f"coupling:{iso(began)}", category="Geomagnetic storm", level=level,
+        title=f"{LEVEL_LABEL[level]}: Earth's field is linking up with the solar wind during a strong storm "
+              f"(Kp {kp_now[1]:g}, Phi {latest:.0f} degrees)",
+        description=f"Geomagnetic activity is at Kp {kp_now[1]:g}, a {g_text(min(5, max(1, int(kp_now[1] + 0.5) - 4)))} storm, "
+                    f"and the direction of the magnetic field carried by the solar wind, its Phi (GSM) angle, fell below "
+                    f"{thr:g} degrees at {crossed:%Y-%m-%d %H:%M} UTC and is now {latest:.0f} degrees. "
+                    f"Phi is the compass-like direction of that field in the plane of Earth's orbit (0 to 360 degrees, "
+                    f"as shown on NOAA's real-time solar wind page). This alert flags a change in the field's direction "
+                    f"that is taken to indicate magnetic coupling between Earth and the storm, which can intensify "
+                    f"storm conditions. Level: {LEVEL_LABEL[level]}. Effects reach Earth in roughly 30-60 minutes after "
+                    f"the solar wind spacecraft sees them; watch for stronger aurora, power grid, GPS and radio "
+                    f"disturbances.",
+        link=c["link"], event_time=began, group="coupling", cooldown_minutes=c["cooldown_minutes"])], \
+        {"coupling": still}
+
+
 CHECKS = [check_flares, check_filaments, check_coronal_hole, check_storm_forecast,
-          check_kp, check_protons, check_solar_wind, check_shock, check_sunspots, check_gic]
+          check_kp, check_coupling, check_protons, check_solar_wind, check_shock, check_sunspots, check_gic]
 
 
 # --------------------------------------------------------------------------- pipeline + feed
