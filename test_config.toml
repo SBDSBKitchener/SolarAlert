@@ -225,6 +225,47 @@ max_plausible = 200
 lookback_minutes = 30
 cooldown_minutes = 60
 
+
+# ---------------------------------------------------------------- SHOCK ARRIVAL (L1)
+# Detects the arrival of an interplanetary shock at the L1 monitor 30-60 minutes before it reaches Earth.
+# A candidate is a lasting jump of speed (6-minute median from 2 minutes after versus ending 2 minutes before;
+# the speed must stay raised: hold_jump >= hold_fraction x speed_jump over the following minutes), with the plasma
+# compressed (density ratio >= min_density_ratio) and at least min_met of: density ratio, field (Bt) ratio and
+# temperature ratio at or above the level's values. speed_jump = 0 turns a level off. Detection lags the shock by
+# roughly 10 minutes because the jump must be confirmed. Spacecraft changes inside the window disqualify a candidate.
+#
+# Calibration (NASA OMNI 1-minute data, measured as above):
+#   17:07 UT (OMNI time) 10 May 2024 superstorm shock: speed +150, density x2.3, field x3.8, temperature x8.5  -> ALERT thresholds
+#     set below these (speed +120, any two of density x1.5, field x1.5, temperature x2.0).
+#   17:08 UT (OMNI time) 1 Jan 2025 storm shock: speed +50, density x2.35, field x0.93 (the field was already high), temperature
+#     x1.33 -> WARNING thresholds set just below these (speed +45, any two of density x1.8, field x1.3, temperature x1.25).
+#   March 1989 (Quebec blackout): OMNI holds no plasma or field data for 12-14 March 1989, so it could not be used.
+# Run over all of 2024 and 2025 these thresholds give roughly 4 ALERT + 22 WARNING (2024) and 2 ALERT + 3 WARNING
+# (2025) detections; the OMNI files are missing about a third of the minutes, so real counts are somewhat higher.
+
+[solar_wind.shock]
+enabled = true
+lookback_minutes = 480
+hold_fraction = 0.6
+hold_min_readings = 6
+min_density_ratio = 1.2
+distance_km = 1500000                 # L1 to Earth, used for the arrival-time estimate
+link = "https://www.swpc.noaa.gov/products/real-time-solar-wind"
+
+[solar_wind.shock.warning]
+speed_jump = 45.0                     # km/s
+density_ratio = 1.8
+field_ratio = 1.3
+temperature_ratio = 1.25
+min_met = 2
+
+[solar_wind.shock.alert]
+speed_jump = 120.0                    # km/s
+density_ratio = 1.5
+field_ratio = 1.5
+temperature_ratio = 2.0
+min_met = 2
+
 # ---------------------------------------------------------------- GEOMAGNETICALLY INDUCED CURRENTS (GIC)
 # Currents induced in power grids by fast changes of the Earth's magnetic field. Two sources, each with a WARNING
 # and an ALERT threshold (the alert's level is the highest threshold reached; a rise from WARNING to ALERT during

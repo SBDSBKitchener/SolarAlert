@@ -226,6 +226,14 @@ def _schema():
           ("sunspots.levels.xprob", "level"), ("sunspots.levels.flares", "level"), ("sunspots.mcintosh_classes", "mcintosh"), ("sunspots.growth_window_days", "posint"),
           ("sunspots.growth_area_min_increase", "nonneg"), ("sunspots.growth_spots_min_increase", "nonneg"),
           ("sunspots.x_flare_probability_min", "nonneg"), ("sunspots.flare_history_min_events", "nonneg")]
+    s += [("solar_wind.shock.enabled", "bool"), ("solar_wind.shock.lookback_minutes", "posint"),
+          ("solar_wind.shock.hold_fraction", "nonneg"), ("solar_wind.shock.hold_min_readings", "posint"),
+          ("solar_wind.shock.min_density_ratio", "nonneg"), ("solar_wind.shock.distance_km", "num"),
+          ("solar_wind.shock.link", "str")]
+    for lv_ in ("warning", "alert"):
+        s += [(f"solar_wind.shock.{lv_}.speed_jump", "nonneg"), (f"solar_wind.shock.{lv_}.density_ratio", "nonneg"),
+              (f"solar_wind.shock.{lv_}.field_ratio", "nonneg"), (f"solar_wind.shock.{lv_}.temperature_ratio", "nonneg"),
+              (f"solar_wind.shock.{lv_}.min_met", "posint")]
     s += [("gic.enabled", "bool"), ("gic.cooldown_minutes", "nonneg"), ("gic.link", "str")]
     s += [(f"gic.dbdt.{k}", kind) for k, kind in (
         ("enabled", "bool"), ("gin_url", "str"), ("usgs_url", "str"), ("lookback_minutes", "posint"),
@@ -278,6 +286,12 @@ def validate_config(cfg):
             w, a_ = goes_flux(cfg["flares"][kind_]["warning_min_class"]), goes_flux(cfg["flares"][kind_]["alert_min_class"])
             if w is not None and a_ is not None and w > a_:
                 errors.append(f"flares.{kind_}: warning_min_class must not be higher than alert_min_class")
+        sh = cfg["solar_wind"]["shock"]
+        if sh["warning"]["speed_jump"] and sh["alert"]["speed_jump"] and sh["warning"]["speed_jump"] > sh["alert"]["speed_jump"]:
+            errors.append("solar_wind.shock: warning.speed_jump must not be higher than alert.speed_jump")
+        for lv_ in ("warning", "alert"):
+            if sh[lv_]["min_met"] > 3:
+                errors.append(f"solar_wind.shock.{lv_}.min_met: at most 3 (density, field, temperature)")
         for kind_ in ("dbdt", "geoelectric"):
             if cfg["gic"][kind_]["warning_threshold"] > cfg["gic"][kind_]["alert_threshold"]:
                 errors.append(f"gic.{kind_}: warning_threshold must not be higher than alert_threshold")
@@ -774,20 +788,30 @@ def active_rows(rows, only_active):
     return chosen or rows
 
 
+def rtsw_rows(cfg, fetch, url_key):
+    """The active-spacecraft rows of one real-time solar wind file, fetched once per cycle and shared by the
+    threshold rules and the shock detector."""
+    sw = cfg["solar_wind"]
+    cache = _STATE.setdefault("rtsw", {})
+    key = (sw[url_key], id(fetch))
+    if key not in cache:
+        cache[key] = active_rows(table_rows(fetch.json(sw[url_key])), sw["only_active"])
+    return cache[key]
+
+
 def check_solar_wind(cfg, fetch, now):
-    sw, alerts, conds, cache = cfg["solar_wind"], [], {}, {}
+    sw, alerts, conds = cfg["solar_wind"], [], {}
     for name, (url_key, label, unit) in SW_FIELDS.items():
         rule, field = sw[name], sw[name]["field"]
         if not rule["enabled"]:
             continue
         try:
-            if sw[url_key] not in cache:
-                cache[sw[url_key]] = active_rows(table_rows(fetch.json(sw[url_key])), sw["only_active"])
+            rows = rtsw_rows(cfg, fetch, url_key)
         except Exception as e:                              # one feed failing must not hide the others
             log.warning("solar wind %s: fetch failed: %s", name, e)
             continue
         group = f"solar_wind_{name}"
-        a, breached = threshold_alert(rule, cache[sw[url_key]], field, now, group, "Solar wind", label, unit,
+        a, breached = threshold_alert(rule, rows, field, now, group, "Solar wind", label, unit,
                                       "https://www.swpc.noaa.gov/products/real-time-solar-wind")
         if a:
             alerts.append(a)
@@ -912,6 +936,118 @@ def check_sunspots(cfg, fetch, now):
             attrs=tuple(w[0] for w in why), on_update=updater))
     _NOTES["sunspots"] = notes[:20]
     return alerts, conds
+
+
+# --------------------------------------------------------------------------- interplanetary shock arrival
+
+def _minute_series(rows, field, cutoff, n):
+    vals, srcs = [None] * n, [None] * n
+    for r in rows:
+        t, v = parse_time(r.get("time_tag")), to_float(r.get(field))
+        if t is None or v is None:
+            continue
+        i = int((t - cutoff).total_seconds() // 60)
+        if 0 <= i < n:
+            vals[i], srcs[i] = v, r.get("source")
+    return vals, srcs
+
+
+def _wmed(arr, a, b, minimum=3):
+    v = [x for x in arr[max(a, 0):max(b, 0)] if x is not None]
+    return statistics.median(v) if len(v) >= minimum else None
+
+
+def _ratio(pair):
+    return pair[1] / pair[0] if pair[0] and pair[1] else None
+
+
+def shock_level(sc, m):
+    """'alert', 'warning' or None for a candidate's measured jumps m (speed_jump, hold, density/field/temp ratios)."""
+    if m["hold_jump"] is None or m["hold_jump"] < sc["hold_fraction"] * m["speed_jump"]:
+        return None                                        # did not persist: not a shock
+    if m["density_ratio"] is None or m["density_ratio"] < sc["min_density_ratio"]:
+        return None                                        # a fast-forward shock always compresses the plasma
+    for level in ("alert", "warning"):
+        L = sc[level]
+        if not L["speed_jump"] or m["speed_jump"] < L["speed_jump"]:
+            continue
+        met = sum([m["density_ratio"] >= L["density_ratio"], (m["field_ratio"] or 0) >= L["field_ratio"],
+                   (m["temperature_ratio"] or 0) >= L["temperature_ratio"]])
+        if met >= L["min_met"]:
+            return level
+    return None
+
+
+def check_shock(cfg, fetch, now):
+    """Arrival of an interplanetary shock at L1: a sudden, lasting jump of solar wind speed with the plasma
+    compressed and at least `min_met` of density, field strength and temperature also jumping.
+
+    Each minute's 6-minute median from 2 minutes later is compared with the 6-minute median ending 2 minutes
+    earlier (so one- or two-minute glitches cannot qualify), and the speed must stay raised (hold test) over the
+    following minutes. Thresholds were calibrated on OMNI data for 2024-2025 (see config.toml)."""
+    sw = cfg["solar_wind"]
+    sc = sw["shock"]
+    if not sc["enabled"]:
+        return [], {}
+    cutoff = (now - timedelta(minutes=sc["lookback_minutes"])).replace(second=0, microsecond=0)
+    n = sc["lookback_minutes"] + 6
+    plasma, mag = rtsw_rows(cfg, fetch, "plasma_url"), rtsw_rows(cfg, fetch, "mag_url")
+    V, vsrc = _minute_series(plasma, "proton_speed", cutoff, n)
+    N, _ = _minute_series(plasma, "proton_density", cutoff, n)
+    T, _ = _minute_series(plasma, "proton_temperature", cutoff, n)
+    B, bsrc = _minute_series(mag, "bt", cutoff, n)
+    min_dv = min([sc[lv]["speed_jump"] for lv in ("warning", "alert") if sc[lv]["speed_jump"]] or [0])
+    if not min_dv:
+        return [], {}
+    found, last = [], -999
+    for i in range(7, n - 8):
+        pre, post = _wmed(V, i - 7, i - 1), _wmed(V, i + 2, i + 8)
+        if pre is None or post is None or post - pre < min_dv:
+            continue
+        dv = post - pre
+        if found and i - last <= 15:
+            if dv > found[-1][1]:
+                found[-1] = (i, dv)
+        else:
+            found.append((i, dv))
+        last = i
+    alerts, notes = [], []
+    for i, dv in found:
+        pre, post = _wmed(V, i - 7, i - 1), _wmed(V, i + 2, i + 8)
+        hold = _wmed(V, i + 8, i + 26, sc["hold_min_readings"])
+        m = {"speed_jump": dv, "hold_jump": None if hold is None else hold - pre,
+             "density_ratio": _ratio((_wmed(N, i - 7, i - 1), _wmed(N, i + 2, i + 8))),
+             "field_ratio": _ratio((_wmed(B, i - 7, i - 1), _wmed(B, i + 2, i + 8))),
+             "temperature_ratio": _ratio((_wmed(T, i - 7, i - 1), _wmed(T, i + 2, i + 8)))}
+        # the medians cross their half-way point a few minutes before the step itself: report the first minute
+        # at which the speed actually passed half-way between the before and after levels
+        j = next((k for k in range(max(i - 3, 0), i + 8) if V[k] is not None and V[k] >= pre + dv / 2), i)
+        t = cutoff + timedelta(minutes=j)
+        mixed = len({x for x in vsrc[i - 7:i + 8] if x} | {x for x in bsrc[i - 7:i + 8] if x}) > 1
+        level = None if mixed else shock_level(sc, m)
+        notes.append({"time": iso(t), "speed_jump": round(dv, 1),
+                      "hold_jump": None if hold is None else round(hold - pre, 1),
+                      **{k: None if m[k] is None else round(m[k], 2) for k in ("density_ratio", "field_ratio", "temperature_ratio")},
+                      "level": level, "spacecraft_changed": mixed, "waiting_for_hold_data": hold is None})
+        if not level:
+            continue
+        eta_min = sc["distance_km"] / post / 60
+        arrival = t + timedelta(minutes=eta_min)
+        ratios = ", ".join(f"{lbl} x{m[k]:.1f}" for lbl, k in (("density", "density_ratio"), ("field", "field_ratio"),
+                                                              ("temperature", "temperature_ratio")) if m[k])
+        alerts.append(Alert(
+            key=f"shock:{iso(t)}", category="Solar wind shock", level=level, near_minutes=20,
+            title=f"{LEVEL_LABEL[level]}: Interplanetary shock at L1, speed {pre:.0f} to {post:.0f} km/s "
+                  f"(+{dv:.0f}); expected at Earth about {arrival:%H:%M} UTC",
+            description=f"A shock passed the L1 solar wind monitor at about {t:%Y-%m-%d %H:%M} UTC: speed rose from "
+                        f"{pre:.0f} to {post:.0f} km/s (+{dv:.0f}), and the jump persisted. Other jumps: {ratios}. "
+                        f"Level: {LEVEL_LABEL[level]}. It should reach Earth in roughly {eta_min:.0f} minutes (about "
+                        f"{arrival:%H:%M} UTC, give or take 15 minutes; the estimate uses the post-shock speed over "
+                        f"{sc['distance_km']:g} km). Expect a sudden impulse in the geomagnetic field on arrival, "
+                        f"possibly followed by a geomagnetic storm depending on the magnetic field direction.",
+            link=sc["link"], event_time=t))
+    _NOTES["shock"] = {"candidates": notes[-8:]}
+    return alerts, {}
 
 
 # --------------------------------------------------------------------------- geomagnetically induced currents (GIC)
@@ -1130,7 +1266,7 @@ def check_gic(cfg, fetch, now):
 
 
 CHECKS = [check_flares, check_filaments, check_coronal_hole, check_storm_forecast,
-          check_kp, check_protons, check_solar_wind, check_sunspots, check_gic]
+          check_kp, check_protons, check_solar_wind, check_shock, check_sunspots, check_gic]
 
 
 # --------------------------------------------------------------------------- pipeline + feed
@@ -1229,6 +1365,7 @@ def run_cycle(cfg, fetch, store, now=None):
     alerts, conds, results = [], {}, []
     _NOTES.clear()
     _STATE["store"] = store
+    _STATE["rtsw"] = {}
     for check in CHECKS:
         try:
             a, c = check(cfg, fetch, now)

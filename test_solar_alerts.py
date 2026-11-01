@@ -56,6 +56,11 @@ class Base(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
+    def prepend(self, items):
+        """Put fake responses FIRST so they win over broader URL prefixes, replacing any earlier entry."""
+        rest = {k: v for k, v in self.f.data.items() if k not in items}
+        self.f.data = {**items, **rest}
+
     def cycle(self, now=NOW):
         return sa.run_cycle(self.cfg, self.f, self.store, now)
 
@@ -810,6 +815,86 @@ class SpikeFilter(Base):
                 sa.validate_config(cfg)
 
 
+class ShockArrival(Base):
+    """Interplanetary shock at L1: lasting speed jump with compression, graded WARNING / ALERT."""
+
+    def shock(self, ago=30, dv=150.0, nr=2.3, br=3.0, tr=4.0, last=None, shift=0, glitch=None, change_source=False):
+        """Fake rtsw rows, one per minute for the 120 minutes before NOW+shift. The shock passes `ago` minutes
+        before then; `last` = how many minutes the raised level lasts (default: to the end)."""
+        base = NOW + timedelta(minutes=shift)
+        plasma, mag = [], []
+        for m in range(120, 0, -1):
+            post = m <= ago and (last is None or m > ago - last)
+            v = 450.0 + (dv if post else 0.0) + (glitch if glitch and m == ago + 10 else 0.0)
+            src = "B" if change_source and m <= ago else "A"
+            t = (base - timedelta(minutes=m)).strftime("%Y-%m-%dT%H:%M:%S")
+            plasma.append({"time_tag": t, "source": src, "active": True, "proton_speed": v,
+                           "proton_density": 4.0 * (nr if post else 1.0), "proton_temperature": 80000.0 * (tr if post else 1.0)})
+            mag.append({"time_tag": t, "source": src, "active": True, "bt": 6.0 * (br if post else 1.0)})
+        sw = self.cfg["solar_wind"]
+        self.prepend({sw["plasma_url"]: plasma, sw["mag_url"]: mag})
+
+    def detect(self, **kw):
+        self.shock(**kw)
+        return [a for a in self.cycle(NOW + timedelta(minutes=kw.get("shift", 0))) if a.category == "Solar wind shock"]
+
+    def test_strong_shock_is_an_alert_with_arrival_estimate(self):
+        new = self.detect()
+        self.assertEqual(len(new), 1, self.titles(new))
+        self.assertEqual((new[0].level, new[0].title[:7]), ("alert", "ALERT: "))
+        self.assertIn("Interplanetary shock", new[0].title)
+        self.assertIn("expected at Earth about", new[0].title)
+        self.assertIn("density x2.3", new[0].description)
+        self.assertIn("reach Earth in roughly 42 minutes", new[0].description)       # 1.5e6 km / 600 km/s
+        self.assertEqual(new[0].event_time, NOW - timedelta(minutes=30))             # the minute the speed stepped up
+
+    def test_moderate_shock_is_a_warning(self):
+        new = self.detect(dv=50.0, nr=2.0, br=1.0, tr=1.4)                             # like the January 2025 storm shock
+        self.assertEqual((new[0].level, new[0].title[:9]), ("warning", "WARNING: "))
+
+    def test_speed_jump_without_compression_is_not_a_shock(self):
+        self.assertEqual(self.detect(nr=1.0, br=2.0, tr=3.0), [])                      # density did not rise
+        self.assertEqual(self.detect(nr=0.5, br=2.0, tr=3.0), [])                      # density fell
+        self.assertEqual(self.detect(dv=150.0, nr=2.0, br=1.0, tr=1.0), [])           # only one ratio met
+
+    def test_small_jump_is_ignored(self):
+        self.assertEqual(self.detect(dv=40.0), [])
+
+    def test_transient_is_not_a_shock(self):
+        self.assertEqual(self.detect(ago=30, last=5), [])                              # returns to normal after 5 minutes
+
+    def test_single_minute_glitch_is_not_a_shock(self):
+        self.shock(ago=0, dv=0.0, glitch=400.0)
+        self.assertEqual([a for a in self.cycle() if a.category == "Solar wind shock"], [])
+
+    def test_waits_for_confirmation_before_alerting(self):
+        self.assertEqual(self.detect(ago=6), [])                                       # too soon to see it persist
+        self.assertTrue(sa._NOTES["shock"]["candidates"][-1]["waiting_for_hold_data"])
+        self.assertEqual(len(self.detect(ago=14)), 1)                                  # enough minutes now
+
+    def test_spacecraft_change_is_not_a_shock(self):
+        self.assertEqual(self.detect(change_source=True), [])
+        self.assertTrue(sa._NOTES["shock"]["candidates"][-1]["spacecraft_changed"])
+
+    def test_not_repeated_while_the_shock_stays_in_the_data(self):
+        self.assertEqual(len(self.detect(ago=20)), 1)
+        self.assertEqual(self.detect(ago=20), [])
+        self.assertEqual(self.detect(ago=23, shift=3), [])                             # same shock, 3 minutes later
+
+    def test_levels_and_switch(self):
+        self.cfg["solar_wind"]["shock"]["alert"]["speed_jump"] = 0                  # alert level off
+        self.assertEqual(self.detect()[0].level, "warning")
+        self.cfg["solar_wind"]["shock"]["enabled"] = False
+        self.assertEqual(self.detect(ago=40), [])
+
+    def test_bad_shock_config_rejected(self):
+        for path, bad in ((("warning", "speed_jump"), 500.0), (("warning", "min_met"), 4), (("alert", "min_met"), 0)):
+            cfg = sa.load_config(os.path.join(HERE, "test_config.toml"))
+            cfg["solar_wind"]["shock"][path[0]][path[1]] = bad
+            with self.assertRaises(sa.ConfigError, msg=str(path)):
+                sa.validate_config(cfg)
+
+
 class GIC(Base):
     """Geomagnetically induced currents: ground magnetometer dB/dt by region, and NOAA's geoelectric field."""
 
@@ -832,11 +917,6 @@ class GIC(Base):
 
     def put(self, code, text, usgs=False):
         self.prepend({(self.USGS if usgs else self.GIN) + code + "&": text})
-
-    def prepend(self, items):
-        """Put fake responses FIRST so they win over broader URL prefixes, replacing any earlier entry."""
-        rest = {k: v for k, v in self.f.data.items() if k not in items}
-        self.f.data = {**items, **rest}
 
     def quiet(self, n=40):
         return [5.0] * n

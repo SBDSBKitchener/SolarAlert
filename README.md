@@ -104,8 +104,15 @@ Every rule has `enabled`; threshold rules also have `threshold`, `direction`
 | Forecast storm | `[geomagnetic.storm_forecast] min_g_level` |
 | Actual Kp | `[geomagnetic.kp] min_kp` (>=) |
 | Protons | `[protons.ge10mev]` (100 pfu), `[protons.ge100mev]` (1 pfu) |
+| Shock arrival | `[solar_wind.shock]`: `warning` / `alert` tables (`speed_jump`, `density_ratio`, `field_ratio`, `temperature_ratio`, `min_met`), `min_density_ratio`, `hold_fraction` |
 | GIC | `[gic.dbdt]` and `[gic.geoelectric]`: `warning_threshold` / `alert_threshold`, stations, `smoothing_window`, `min_points` |
 | Solar wind | `[solar_wind.speed / density / bt / bz]` (Bz uses `direction = "below"`); spike filters per rule: `smoothing_window` (default 5 one-minute readings, median) and `max_plausible` (readings beyond it are discarded; defaults 2000 km/s, 100 /cm³, 200 nT). 1 / 0 turn them off |
+
+## Shock arrival at L1
+
+`[solar_wind.shock]` detects an interplanetary shock passing the L1 monitor, usually 30-60 minutes before it reaches Earth. A shock is a lasting jump in solar wind speed together with compression: the 6-minute median speed from 2 minutes later must exceed the median ending 2 minutes earlier by at least `speed_jump`, the speed must stay raised (`hold_fraction`), the density must rise by at least `min_density_ratio`, and at least `min_met` of the density, field (Bt) and temperature ratios must reach their level's values. Levels: **WARNING** (speed +45 km/s, any two of density x1.8, field x1.3, temperature x1.25) and **ALERT** (speed +120 km/s, any two of density x1.5, field x1.5, temperature x2.0). The alert gives the shock time at L1 and an estimated arrival at Earth (1.5 million km at the post-shock speed, give or take about 15 minutes). It is raised about 10 minutes after the shock passes, once the jump is confirmed.
+
+Calibration used NASA OMNI 1-minute data (`tools/omni_shocks*.py`, `tools/replay_shock.py`): the 10 May 2024 superstorm shock sets the ALERT thresholds, the 1 January 2025 storm shock the WARNING thresholds. March 1989 could not be used: OMNI has no plasma or field data for 12-14 March 1989. Over all of 2024 and 2025 the thresholds give about 4 ALERT + 22 WARNING shocks in 2024 and 2 + 3 in 2025 (the OMNI files miss about a third of the minutes). Real-time data is noisier than OMNI, so treat the first weeks as a trial and adjust through `health.json` (`notes.shock` lists every candidate and why it passed or failed).
 
 ## Geomagnetically induced currents (GIC)
 
