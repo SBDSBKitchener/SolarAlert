@@ -104,7 +104,23 @@ Every rule has `enabled`; threshold rules also have `threshold`, `direction`
 | Forecast storm | `[geomagnetic.storm_forecast] min_g_level` |
 | Actual Kp | `[geomagnetic.kp] min_kp` (>=) |
 | Protons | `[protons.ge10mev]` (100 pfu), `[protons.ge100mev]` (1 pfu) |
+| GIC | `[gic.dbdt]` and `[gic.geoelectric]`: `warning_threshold` / `alert_threshold`, stations, `smoothing_window`, `min_points` |
 | Solar wind | `[solar_wind.speed / density / bt / bz]` (Bz uses `direction = "below"`); spike filters per rule: `smoothing_window` (default 5 one-minute readings, median) and `max_plausible` (readings beyond it are discarded; defaults 2000 km/s, 100 /cm³, 200 nT). 1 / 0 turn them off |
+
+## Geomagnetically induced currents (GIC)
+
+Two WARNING / ALERT sources, set in `[gic]` (all thresholds configurable; run `--check-config` after editing):
+
+| Source | Measures | WARNING | ALERT |
+|---|---|---|---|
+| `[gic.dbdt]` | rate of change of the horizontal magnetic field at ground stations, nT/min, one episode per region | 400 | 800 |
+| `[gic.geoelectric]` | NOAA SWPC 1D geoelectric field model, US and Canada south of 60N, mV/km | 1000 | 1500 |
+
+* **Regions for dB/dt:** North America (BOU, FRD from USGS), Europe (NUR, NGK, FUR, HRN, BEL), Asia (KAK, MMB, KNY), Australasia (CNB, CTA, KDU, EYR) and South America (VSS, a single station), from INTERMAGNET observatories via the British Geological Survey service. Russia is not covered: no usable public data was found (tested 1 Nov 2026). Edit the `[[gic.dbdt.stations]]` list to add or drop stations; stations that share a `region` name share an alert episode.
+* **dB/dt is a stand-in for GIC.** The current in a particular grid also depends on local ground conductivity and on the grid itself, which this feed cannot know. The geoelectric field is closer to the cause but is a model that SWPC says can be substantially inaccurate in places.
+* **Spike filters:** dB/dt values above `max_plausible` are discarded and the median of the last `smoothing_window` (5) values is used, so a one- or two-minute magnetometer glitch cannot alert. The geoelectric value is the `min_points`-th (3rd) strongest grid point, so one odd grid point cannot alert.
+* **Levels:** a WARNING is raised to an ALERT as an update within the same episode. Alerts are delayed by the data: most stations report within 3-16 minutes, Eyrewell and Vassouras about 36.
+* `health.json` (`notes.gic`) lists every station's newest reading, age and largest smoothed dB/dt, and the geoelectric files used. `tools/probe_gic.py` and the "Probe GIC data sources" workflow are a diagnostic that tests candidate sources.
 
 ## Filtering solar wind spikes
 
@@ -156,6 +172,7 @@ Real HEK timing fields are listed under `flares` in `health.json`.
 | G-storm forecast | SWPC `alerts.json` (WATCH "Category Gx Predicted", WARNING "K-index of N expected") |
 | Kp | `noaa-planetary-k-index.json` |
 | Protons | GOES `integral-protons-1-day.json` |
+| GIC | INTERMAGNET 1-minute data via `imag-data.bgs.ac.uk` (IAGA-2002), USGS `geomag.usgs.gov/ws/data`, NOAA SWPC `json/lists/rgeojson/US-Canada-1D/` |
 | Solar wind | SWPC `plasma-1-day.json`, `mag-1-day.json` (the `-5-minute` files hold only one reading) |
 
 * **Written without live network access.** The logic is tested against fake data in the same formats;

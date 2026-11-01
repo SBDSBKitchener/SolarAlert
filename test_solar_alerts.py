@@ -810,6 +810,183 @@ class SpikeFilter(Base):
                 sa.validate_config(cfg)
 
 
+class GIC(Base):
+    """Geomagnetically induced currents: ground magnetometer dB/dt by region, and NOAA's geoelectric field."""
+
+    GIN = "https://imag-data.bgs.ac.uk/GIN_V1/GINServices?Request=GetData&format=iaga2002&testObsys=0&observatoryIagaCode="
+    USGS = "https://geomag.usgs.gov/ws/data/?id="
+
+    def iaga(self, code, rates, end_ago=1, shift=0, comps="XYZF"):
+        """One-minute IAGA-2002 text. rates[i] is the change of X (nT) into minute i; the last row is `end_ago`
+        minutes before NOW + shift minutes. Missing rows after the data are marked 99999 like the real service."""
+        n = len(rates) + 1
+        x, rows = 20000.0, []
+        for i in range(n):
+            x += rates[i - 1] if i else 0
+            t = NOW + timedelta(minutes=shift) - timedelta(minutes=end_ago + n - 1 - i)
+            rows.append(f"{t:%Y-%m-%d %H:%M:%S}.000 305 {x:12.2f} {3000.0:10.2f} {45000.0:10.2f} {50000.0:10.2f}")
+        t = NOW + timedelta(minutes=shift) - timedelta(minutes=end_ago - 1)
+        rows.append(f"{t:%Y-%m-%d %H:%M:%S}.000 305 99999.00 99999.00 99999.00 99999.00")
+        hdr = "DATE       TIME         DOY     " + "      ".join(code + c for c in comps) + "   |"
+        return "Format IAGA-2002\n" + hdr + "\n" + "\n".join(rows) + "\n"
+
+    def put(self, code, text, usgs=False):
+        self.prepend({(self.USGS if usgs else self.GIN) + code + "&": text})
+
+    def prepend(self, items):
+        """Put fake responses FIRST so they win over broader URL prefixes, replacing any earlier entry."""
+        rest = {k: v for k, v in self.f.data.items() if k not in items}
+        self.f.data = {**items, **rest}
+
+    def quiet(self, n=40):
+        return [5.0] * n
+
+    # ---- parsing -----------------------------------------------------------------------------------
+    def test_parser_skips_missing_and_converts_hdzf(self):
+        rows = sa.parse_iaga(self.iaga("NUR", [10.0, 10.0]))
+        self.assertEqual(len(rows), 3)                                  # the all-99999 row is dropped
+        hd = ("DATE TIME DOY NURH NURD NURZ NURF |\n"
+              "2026-10-13 11:58:00.000 286 20000.00 0.00 45000.00 99999.00\n"
+              "2026-10-13 11:59:00.000 286 20000.00 60.00 45000.00 99999.00\n")   # D = 60 arcmin = 1 degree
+        (_, x0, y0), (_, x1, y1) = sa.parse_iaga(hd)
+        self.assertAlmostEqual(x0, 20000.0)
+        self.assertAlmostEqual(y1, 20000 * 0.017452406, places=1)
+        with self.assertRaises(ValueError):
+            sa.parse_iaga("DATE TIME DOY NURD NURI NURF |\n2026-10-13 11:58:00.000 286 1 2 3 4\n")
+
+    def test_dbdt_series_ignores_gaps_and_glitches(self):
+        t = NOW
+        rows = [(t + timedelta(minutes=i), 100.0 * i, 0.0) for i in range(4)]
+        self.assertEqual([round(v) for _, v in sa.dbdt_series(rows, 0, 1)], [100, 100, 100])
+        gap = rows[:2] + [(rows[1][0] + timedelta(minutes=10), 9999.0, 0.0)]
+        self.assertEqual(len(sa.dbdt_series(gap, 0, 1)), 1)             # no rate across a 10 minute gap
+        self.assertEqual(sa.dbdt_series([(t, 0.0, 0.0), (t + timedelta(minutes=1), 9000.0, 0.0)], 5000, 1), [])
+
+    # ---- dB/dt alerts ------------------------------------------------------------------------------
+    def test_quiet_field_no_alert(self):
+        self.put("NUR", self.iaga("NUR", self.quiet()))
+        self.assertEqual(self.cycle(), [])
+
+    def test_sustained_excursion_is_a_warning_for_its_region(self):
+        self.put("NUR", self.iaga("NUR", self.quiet() + [450.0] * 6))
+        self.put("KAK", self.iaga("KAK", self.quiet()))
+        new = self.cycle()
+        self.assertEqual(len(new), 1, self.titles(new))
+        self.assertEqual(new[0].level, "warning")
+        self.assertTrue(new[0].title.startswith("WARNING: "))
+        for part in ("Europe", "NUR", "nT/min"):
+            self.assertIn(part, new[0].title)
+        self.assertEqual(self.cycle(), [])                              # not repeated
+
+    def test_single_minute_glitch_is_filtered(self):
+        self.put("NUR", self.iaga("NUR", self.quiet() + [3000.0, -3000.0] + self.quiet(10)))
+        self.assertEqual(self.cycle(), [])
+
+    def test_above_alert_threshold_is_an_alert(self):
+        self.put("KAK", self.iaga("KAK", self.quiet() + [900.0] * 6))
+        new = self.cycle()
+        self.assertEqual((new[0].level, new[0].title[:7]), ("alert", "ALERT: "))
+        self.assertIn("Asia", new[0].title)
+
+    def test_warning_raised_to_alert_is_announced_once(self):
+        self.put("NUR", self.iaga("NUR", self.quiet() + [450.0] * 6))
+        self.assertEqual(self.cycle()[0].level, "warning")
+        self.put("NUR", self.iaga("NUR", self.quiet() + [450.0] * 6 + [900.0] * 6, shift=6))
+        upd = self.cycle(NOW + timedelta(minutes=6))
+        self.assertEqual(len(upd), 1, self.titles(upd))
+        self.assertEqual(upd[0].level, "alert")
+        self.assertIn("update", upd[0].title)
+        self.assertIn("Raised from WARNING", upd[0].description)
+        self.put("NUR", self.iaga("NUR", self.quiet() + [450.0] * 6 + [900.0] * 12, shift=12))
+        self.assertEqual(self.cycle(NOW + timedelta(minutes=12)), [])
+
+    def test_regions_are_independent_and_failing_stations_do_not_block(self):
+        self.put("NUR", self.iaga("NUR", self.quiet() + [450.0] * 6))
+        self.put("BOU", self.iaga("BOU", self.quiet() + [450.0] * 6), usgs=True)
+        new = self.cycle()                                              # every other station raises KeyError
+        self.assertEqual(sorted(("Europe" in a.title, "North America" in a.title) for a in new),
+                         [(False, True), (True, False)])
+        self.assertIn("error", sa._NOTES["gic"]["dbdt_stations"]["KAK"])
+
+    def test_thresholds_are_configurable(self):
+        self.put("NUR", self.iaga("NUR", self.quiet() + [450.0] * 6))
+        self.cfg["gic"]["dbdt"].update(warning_threshold=500.0, alert_threshold=1000.0)
+        self.assertEqual(self.cycle(), [])
+        self.cfg["gic"]["dbdt"]["warning_threshold"] = 300.0
+        self.assertEqual(len(self.cycle()), 1)
+
+    def test_station_that_stopped_reporting_does_not_hold_the_episode_open(self):
+        self.put("NUR", self.iaga("NUR", self.quiet() + [450.0] * 6))
+        self.assertEqual(len(self.cycle()), 1)
+        self.assertTrue(self.store.group("gic_dbdt_europe")[0])
+        later = NOW + timedelta(hours=3)                                # same data, now 3 hours old
+        self.cycle(later)
+        self.assertFalse(self.store.group("gic_dbdt_europe")[0])
+
+    # ---- NOAA geoelectric field ---------------------------------------------------------------------
+    EF = "https://services.swpc.noaa.gov/json/lists/rgeojson/US-Canada-1D/"
+
+    def efield(self, minutes_ago_list, strengths):
+        """Fake NOAA listing + one GeoJSON file per entry; `strengths` = |E| of the strongest grid points."""
+        names, files = [], {}
+        for m in minutes_ago_list:
+            name = f"{NOW - timedelta(minutes=m):%Y%m%dT%H%M%S}-15-Efield-US-Canada.json"
+            names.append(name)
+            feats = [{"type": "Feature", "geometry": {"type": "Point", "coordinates": [-100.0 + i, 45.0]},
+                      "properties": {"Ex": float(v), "Ey": 0.0, "quality_flag": 5, "distance_nearest_station": 100.0}}
+                     for i, v in enumerate(list(strengths) + [5.0] * 20)]
+            files[self.EF + name] = {"time_tag": "2026-10-13", "cadence": 60, "features": feats}
+        html = "<pre>" + "".join(f'<a href="{n}">{n}</a> 2026-10-13 11:00 1.2M\n' for n in names) + "</pre>"
+        self.prepend({**files, self.EF: html})
+
+    def test_geoelectric_levels(self):
+        self.efield([2], [1100, 1100, 1100])
+        new = self.cycle()
+        self.assertEqual((new[0].level, new[0].title[:9]), ("warning", "WARNING: "))
+        self.assertIn("mV/km", new[0].title)
+        self.assertIn("US and Canada", new[0].title)
+
+    def test_geoelectric_alert_and_single_grid_point_ignored(self):
+        self.efield([2], [2500, 1100, 900])                              # only the 3rd strongest counts: 900
+        self.assertEqual(self.cycle(), [])
+        self.efield([1], [1700, 1600, 1600])
+        new = self.cycle(NOW + timedelta(minutes=2))
+        self.assertEqual(new[0].level, "alert")
+
+    def test_geoelectric_only_fetches_new_files_and_is_not_repeated(self):
+        self.efield([3, 2, 1], [1100, 1100, 1100])
+        self.assertEqual(len(self.cycle()), 1)
+        self.assertEqual(self.cycle(), [])                               # nothing new since last time
+        self.assertEqual(sa._NOTES["gic"]["geoelectric"]["files_new"], 0)
+
+    def test_geoelectric_catch_up_is_capped(self):
+        self.efield(list(range(1, 41)), [10, 10, 10])
+        self.cycle()
+        self.assertEqual(sa._NOTES["gic"]["geoelectric"]["files_used"], 6)
+
+    def test_geoelectric_station_distance_filter(self):
+        self.efield([2], [1100, 1100, 1100])
+        self.cfg["gic"]["geoelectric"]["max_nearest_station_km"] = 50
+        self.assertEqual(self.cycle(), [])                               # all test points are 100 km away
+
+    def test_gic_can_be_switched_off(self):
+        self.put("KAK", self.iaga("KAK", self.quiet() + [900.0] * 6))
+        self.cfg["gic"]["dbdt"]["enabled"] = False
+        self.assertEqual(self.cycle(), [])
+        self.cfg["gic"]["dbdt"]["enabled"] = True
+        self.cfg["gic"]["enabled"] = False
+        self.assertEqual(self.cycle(), [])
+
+    def test_bad_gic_config_rejected(self):
+        for sec, bad in (("dbdt", {"warning_threshold": 900.0}), ("geoelectric", {"warning_threshold": 2000.0}),
+                         ("dbdt", {"stations": []}), ("dbdt", {"stations": [{"code": "NUR", "region": "Europe", "source": "ftp"}]}),
+                         ("dbdt", {"smoothing_window": 0}), ("geoelectric", {"min_points": 0})):
+            cfg = sa.load_config(os.path.join(HERE, "test_config.toml"))
+            cfg["gic"][sec].update(bad)
+            with self.assertRaises(sa.ConfigError, msg=str(bad)):
+                sa.validate_config(cfg)
+
+
 class LongLookback(ProtonsAndWind):
     """The workflow may run only every few hours, so spikes between runs must still be found, once."""
 

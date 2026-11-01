@@ -224,3 +224,124 @@ smoothing_window = 5
 max_plausible = 200
 lookback_minutes = 30
 cooldown_minutes = 60
+
+# ---------------------------------------------------------------- GEOMAGNETICALLY INDUCED CURRENTS (GIC)
+# Currents induced in power grids by fast changes of the Earth's magnetic field. Two sources, each with a WARNING
+# and an ALERT threshold (the alert's level is the highest threshold reached; a rise from WARNING to ALERT during
+# the same episode is announced as an update):
+#
+#  1. dbdt: rate of change of the horizontal magnetic field (nT/min) at ground magnetometer stations, grouped by
+#     region (one alert episode per region). This is a stand-in for GIC: the current in a particular grid also
+#     depends on local ground conductivity and on the grid. Stations: INTERMAGNET observatories via the British
+#     Geological Survey service ("gin") and USGS ("usgs"). Add or remove [[gic.dbdt.stations]] entries freely
+#     (code = IAGA code, region = any name; stations sharing a region name share an alert episode). Not covered:
+#     Russia (no usable public data found); South America has a single station.
+#     smoothing_window / max_plausible are spike filters, as for solar wind: values above max_plausible are
+#     discarded and the median of the last smoothing_window values is used (1 / 0 = off).
+#     A station that has not reported for max_station_age_minutes no longer keeps an episode open.
+#  2. geoelectric: NOAA SWPC 1D geoelectric field model for the US and Canada south of 60N, in mV/km (one file per
+#     minute). The value judged is the min_points-th strongest grid point, so one odd point cannot trigger an alert.
+#     max_nearest_station_km > 0 ignores grid points that are further than that from a magnetometer station
+#     (the model is least reliable there). SWPC warns the 1D model can be substantially inaccurate in places.
+#     max_files_per_run limits how many minute files are fetched when catching up after a gap.
+
+[gic]
+enabled = true
+cooldown_minutes = 60
+link = "https://www.spaceweather.gov/products/geoelectric-field-models-1-minute"
+
+[gic.dbdt]
+enabled = true
+gin_url = "https://imag-data.bgs.ac.uk/GIN_V1/GINServices"
+usgs_url = "https://geomag.usgs.gov/ws/data/"
+lookback_minutes = 480
+smoothing_window = 5
+max_plausible = 5000
+max_station_age_minutes = 60
+warning_threshold = 400.0             # nT/min
+alert_threshold = 800.0               # nT/min
+
+[[gic.dbdt.stations]]
+code = "BOU"
+region = "North America"
+source = "usgs"
+
+[[gic.dbdt.stations]]
+code = "FRD"
+region = "North America"
+source = "usgs"
+
+[[gic.dbdt.stations]]
+code = "NUR"
+region = "Europe"
+source = "gin"
+
+[[gic.dbdt.stations]]
+code = "NGK"
+region = "Europe"
+source = "gin"
+
+[[gic.dbdt.stations]]
+code = "FUR"
+region = "Europe"
+source = "gin"
+
+[[gic.dbdt.stations]]
+code = "HRN"
+region = "Europe"
+source = "gin"
+
+[[gic.dbdt.stations]]
+code = "BEL"
+region = "Europe"
+source = "gin"
+
+[[gic.dbdt.stations]]
+code = "KAK"
+region = "Asia"
+source = "gin"
+
+[[gic.dbdt.stations]]
+code = "MMB"
+region = "Asia"
+source = "gin"
+
+[[gic.dbdt.stations]]
+code = "KNY"
+region = "Asia"
+source = "gin"
+
+[[gic.dbdt.stations]]
+code = "CNB"
+region = "Australasia"
+source = "gin"
+
+[[gic.dbdt.stations]]
+code = "CTA"
+region = "Australasia"
+source = "gin"
+
+[[gic.dbdt.stations]]
+code = "KDU"
+region = "Australasia"
+source = "gin"
+
+[[gic.dbdt.stations]]
+code = "EYR"
+region = "Australasia"
+source = "gin"
+
+[[gic.dbdt.stations]]
+code = "VSS"
+region = "South America"
+source = "gin"
+
+[gic.geoelectric]
+enabled = true
+listing_url = "https://services.swpc.noaa.gov/json/lists/rgeojson/US-Canada-1D/"
+lookback_minutes = 60
+max_files_per_run = 6
+min_points = 3
+max_nearest_station_km = 0
+warning_threshold = 1000.0            # mV/km
+alert_threshold = 1500.0              # mV/km

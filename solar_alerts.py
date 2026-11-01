@@ -180,6 +180,9 @@ KINDS = {
     "mcintosh": lambda v: isinstance(v, list) and all(
         isinstance(x, str) and re.fullmatch(r"[ABCDEFH][XRSAHK][XOIC]", x.strip(), re.I) for x in v),
     "level": lambda v: v in ("off",) + LEVELS,
+    "stations": lambda v: isinstance(v, list) and bool(v) and all(
+        isinstance(x, dict) and isinstance(x.get("code"), str) and x["code"].strip()
+        and isinstance(x.get("region"), str) and x["region"].strip() and x.get("source") in ("gin", "usgs") for x in v),
     "classoff": lambda v: goes_flux(v) is not None or (isinstance(v, str) and v.strip().lower() == "off"),
     "nonneg": lambda v: _is_num(v) and v >= 0,
     "posint": lambda v: isinstance(v, int) and not isinstance(v, bool) and v >= 1,
@@ -223,6 +226,15 @@ def _schema():
           ("sunspots.levels.xprob", "level"), ("sunspots.levels.flares", "level"), ("sunspots.mcintosh_classes", "mcintosh"), ("sunspots.growth_window_days", "posint"),
           ("sunspots.growth_area_min_increase", "nonneg"), ("sunspots.growth_spots_min_increase", "nonneg"),
           ("sunspots.x_flare_probability_min", "nonneg"), ("sunspots.flare_history_min_events", "nonneg")]
+    s += [("gic.enabled", "bool"), ("gic.cooldown_minutes", "nonneg"), ("gic.link", "str")]
+    s += [(f"gic.dbdt.{k}", kind) for k, kind in (
+        ("enabled", "bool"), ("gin_url", "str"), ("usgs_url", "str"), ("lookback_minutes", "posint"),
+        ("smoothing_window", "posint"), ("max_plausible", "nonneg"), ("max_station_age_minutes", "posint"),
+        ("warning_threshold", "num"), ("alert_threshold", "num"), ("stations", "stations"))]
+    s += [(f"gic.geoelectric.{k}", kind) for k, kind in (
+        ("enabled", "bool"), ("listing_url", "str"), ("lookback_minutes", "posint"), ("max_files_per_run", "posint"),
+        ("min_points", "posint"), ("max_nearest_station_km", "nonneg"),
+        ("warning_threshold", "num"), ("alert_threshold", "num"))]
     for r in ("speed", "density", "bt", "bz"):
         s += [(f"solar_wind.{r}.field", "str"), (f"solar_wind.{r}.smoothing_window", "posint"),
               (f"solar_wind.{r}.max_plausible", "nonneg")]
@@ -266,6 +278,9 @@ def validate_config(cfg):
             w, a_ = goes_flux(cfg["flares"][kind_]["warning_min_class"]), goes_flux(cfg["flares"][kind_]["alert_min_class"])
             if w is not None and a_ is not None and w > a_:
                 errors.append(f"flares.{kind_}: warning_min_class must not be higher than alert_min_class")
+        for kind_ in ("dbdt", "geoelectric"):
+            if cfg["gic"][kind_]["warning_threshold"] > cfg["gic"][kind_]["alert_threshold"]:
+                errors.append(f"gic.{kind_}: warning_threshold must not be higher than alert_threshold")
         if not 0 <= cfg["sunspots"]["max_longitude"] <= 180:
             errors.append("sunspots: need 0 <= max_longitude <= 180")
     if errors:
@@ -323,9 +338,17 @@ class Store:
                 name TEXT PRIMARY KEY, active INTEGER DEFAULT 0, last_alert TEXT);
             CREATE TABLE IF NOT EXISTS reported(
                 grp TEXT, attr TEXT, PRIMARY KEY(grp, attr));
+            CREATE TABLE IF NOT EXISTS kv(k TEXT PRIMARY KEY, v TEXT);
         """)
         if "level" not in {r[1] for r in self.db.execute("PRAGMA table_info(alerts)")}:
             self.db.execute("ALTER TABLE alerts ADD COLUMN level TEXT DEFAULT ''")
+
+    def get_kv(self, key):
+        r = self.db.execute("SELECT v FROM kv WHERE k=?", (key,)).fetchone()
+        return r[0] if r else None
+
+    def set_kv(self, key, value):
+        self.db.execute("INSERT INTO kv(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v", (key, value))
 
     def has_key(self, key):
         return self.db.execute("SELECT 1 FROM alerts WHERE dedupe_key=?", (key,)).fetchone() is not None
@@ -624,6 +647,7 @@ def check_filaments(cfg, fetch, now):
 
 
 _NOTES = {}      # per-cycle debugging detail written to health.json
+_STATE = {}      # the open Store, for checks that remember something between runs (set by run_cycle)
 
 
 def check_coronal_hole(cfg, fetch, now):
@@ -890,8 +914,223 @@ def check_sunspots(cfg, fetch, now):
     return alerts, conds
 
 
+# --------------------------------------------------------------------------- geomagnetically induced currents (GIC)
+
+IAGA_ROW = re.compile(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}")
+GIC_CATEGORY = "Geomagnetically induced currents"
+
+
+def parse_iaga(text):
+    """IAGA-2002 one-minute magnetometer text -> [(time, X, Y)] in nT, keeping only rows where both horizontal
+    components are present (99999/88888 mean missing). HDZF files are converted (D is in minutes of arc)."""
+    comps, rows = None, []
+    for line in text.splitlines():
+        if line.startswith("DATE"):
+            comps = [c[-1] for c in line.replace("|", " ").split()[3:7]]
+            continue
+        if not IAGA_ROW.match(line):
+            continue
+        parts = line.split()
+        try:
+            t = datetime.strptime(f"{parts[0]} {parts[1][:8]}", "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+            a, b = float(parts[3]), float(parts[4])
+        except (ValueError, IndexError):
+            continue
+        if abs(a) >= 88888 or abs(b) >= 88888:
+            continue
+        if comps and comps[:2] == ["H", "D"]:
+            a, b = a * math.cos(math.radians(b / 60)), a * math.sin(math.radians(b / 60))
+        elif comps and comps[:2] != ["X", "Y"]:
+            raise ValueError(f"unsupported components {comps}")
+        rows.append((t, a, b))
+    return rows
+
+
+def dbdt_series(rows, cap, window):
+    """Rate of change of the horizontal field in nT/min between consecutive minutes -> [(time, value)].
+    Values above the plausibility cap are dropped; the rest are replaced by the median of the last `window`."""
+    rates = []
+    for (t0, x0, y0), (t1, x1, y1) in zip(rows, rows[1:]):
+        gap = (t1 - t0).total_seconds() / 60
+        if 0 < gap <= 3:
+            r = math.hypot(x1 - x0, y1 - y0) / gap
+            if not cap or r <= cap:
+                rates.append((t1, r))
+    if window > 1:
+        rates = [(rates[i][0], statistics.median(v for _, v in rates[i - window + 1:i + 1]))
+                 for i in range(window - 1, len(rates))]
+    return rates
+
+
+def gic_episode(group, headline, unit, samples, warn, alert_at, cooldown, link, basis):
+    """Turn samples [(time, value, where)] into one alert for the most recent excursion at or above `warn`:
+    WARNING, raised to ALERT when a value reaches `alert_at`. Later runs announce a rise to ALERT as an update."""
+    hits = sorted(x for x in samples if x[1] >= warn)
+    if not hits:
+        return None
+    spike = [hits[-1]]
+    for h in reversed(hits[:-1]):
+        if spike[0][0] - h[0] > SPIKE_GAP:
+            break
+        spike.insert(0, h)
+    start = spike[0][0]
+    t, v, where = max(spike, key=lambda x: x[1])
+    reached = ("warning", "alert") if v >= alert_at else ("warning",)
+    level = reached[-1]
+
+    def text(lv):
+        thr = alert_at if lv == "alert" else warn
+        return (f"{headline(v, where)}. Level: {LEVEL_LABEL[lv]} (threshold {thr:g} {unit}). Peak {v:.0f} {unit} "
+                f"at {t:%Y-%m-%d %H:%M} UTC; the excursion began {start:%H:%M} UTC. {basis}")
+
+    def updater(fresh, seen):
+        lv = top_level(reached + tuple(fresh))
+        before = top_level(seen)
+        raised = f" Raised from {LEVEL_LABEL[before]}." if before and before != lv else ""
+        return (f"{LEVEL_LABEL[lv]}: {headline(v, where)} (update)", text(lv) + raised, lv)
+
+    return Alert(key=f"{group}:{iso(start)}", category=GIC_CATEGORY, level=level,
+                 title=f"{LEVEL_LABEL[level]}: {headline(v, where)}", description=text(level), link=link,
+                 event_time=t, group=group, cooldown_minutes=cooldown, attrs=reached, on_update=updater)
+
+
+def _slug(name):
+    return re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
+
+
+def gic_dbdt(cfg, fetch, now):
+    g, c = cfg["gic"], cfg["gic"]["dbdt"]
+    cutoff = now - timedelta(minutes=c["lookback_minutes"])
+    start_day = cutoff.date()
+    days = (now.date() - start_day).days + 1
+    by_region, notes = {}, {}
+    for st in c["stations"]:
+        code, region = st["code"].strip().upper(), st["region"].strip()
+        if st["source"] == "usgs":
+            url = c["usgs_url"] + "?" + urllib.parse.urlencode({
+                "id": code, "type": "variation", "format": "iaga2002", "sampling_period": 60,
+                "starttime": cutoff.strftime("%Y-%m-%dT%H:%M:%SZ"), "endtime": now.strftime("%Y-%m-%dT%H:%M:%SZ")})
+        else:
+            url = c["gin_url"] + "?" + urllib.parse.urlencode({
+                "Request": "GetData", "format": "iaga2002", "testObsys": 0, "observatoryIagaCode": code,
+                "samplesPerDay": "minute", "publicationState": "Best available",
+                "dataStartDate": start_day.isoformat(), "dataDuration": days}, quote_via=urllib.parse.quote)
+        try:
+            rows = [r for r in parse_iaga(fetch.text(url)) if cutoff <= r[0] <= now + timedelta(minutes=5)]
+            series = dbdt_series(rows, c["max_plausible"], c["smoothing_window"])
+        except Exception as e:                               # one station failing must not hide the others
+            log.warning("GIC dB/dt %s: %s", code, e)
+            notes[code] = {"error": f"{type(e).__name__}: {e}"[:200]}
+            continue
+        newest = rows[-1][0] if rows else None
+        notes[code] = {"region": region, "readings": len(rows), "newest": iso(newest) if newest else None,
+                       "age_minutes": round((now - newest).total_seconds() / 60, 1) if newest else None,
+                       "max_smoothed_dbdt": round(max((v for _, v in series), default=0), 1)}
+        if series:
+            by_region.setdefault(region, []).append((code, series, newest))
+    _NOTES.setdefault("gic", {})["dbdt_stations"] = notes
+    alerts, conds = [], {}
+    for region, stations in by_region.items():
+        samples = [(t, v, code) for code, series, _ in stations for t, v in series]
+        # the episode is still open while a recently reporting station's latest value is at or above the warning level
+        still = any(series[-1][1] >= c["warning_threshold"] and (now - newest).total_seconds() / 60 <= c["max_station_age_minutes"]
+                    for _, series, newest in stations)
+        group = f"gic_dbdt_{_slug(region)}"
+        conds[group] = still
+        a = gic_episode(group, lambda v, w, region=region: f"Rapid geomagnetic field change in {region}: "
+                                                          f"{v:.0f} nT/min at station {w}",
+                        "nT/min", samples, c["warning_threshold"], c["alert_threshold"], g["cooldown_minutes"], g["link"],
+                        f"Rate of change of the horizontal magnetic field measured at ground stations in {region} "
+                        f"(a stand-in for induced currents in power grids; the current in a particular grid depends on "
+                        f"local ground conductivity and the grid itself).")
+        if a:
+            alerts.append(a)
+    return alerts, conds
+
+
+def gic_geoelectric(cfg, fetch, now):
+    g, c = cfg["gic"], cfg["gic"]["geoelectric"]
+    store = _STATE["store"]
+    listing = fetch.text(c["listing_url"])
+    files = {}
+    for m in re.finditer(r'href="((\d{8}T\d{6})[^"]*\.json)"', listing):
+        try:
+            files[datetime.strptime(m.group(2), "%Y%m%dT%H%M%S").replace(tzinfo=timezone.utc)] = m.group(1)
+        except ValueError:
+            continue
+    last = parse_time(store.get_kv("gic_efield_last"))
+    floor = max(now - timedelta(minutes=c["lookback_minutes"]), last + timedelta(seconds=1)) if last else \
+        now - timedelta(minutes=c["lookback_minutes"])
+    todo = sorted(t for t in files if floor <= t <= now + timedelta(minutes=5))
+    n = c["max_files_per_run"]
+    if len(todo) > n:                                        # evenly spaced, always including the newest
+        todo = sorted({todo[round(i * (len(todo) - 1) / (n - 1))] for i in range(n)}) if n > 1 else todo[-1:]
+    notes = {"files_listed": len(files), "files_new": len(todo), "newest_listed": iso(max(files)) if files else None}
+    _NOTES.setdefault("gic", {})["geoelectric"] = notes
+    if not todo:
+        return [], {}                                        # nothing new: leave the episode state unchanged
+    samples, ok = [], []
+    for t in todo:
+        try:
+            data = fetch.json(c["listing_url"].rstrip("/") + "/" + files[t])
+        except Exception as e:
+            log.warning("GIC geoelectric %s: %s", files[t], e)
+            notes["error"] = f"{type(e).__name__}: {e}"[:200]
+            continue
+        vals = []
+        for f in data.get("features", []):
+            pr = f.get("properties") or {}
+            ex, ey = to_float(pr.get("Ex")), to_float(pr.get("Ey"))
+            if ex is None or ey is None:
+                continue
+            dist = to_float(pr.get("distance_nearest_station"))
+            if c["max_nearest_station_km"] and dist is not None and dist > c["max_nearest_station_km"]:
+                continue
+            lon, lat = (f.get("geometry") or {}).get("coordinates", [None, None])[:2]
+            vals.append((math.hypot(ex, ey), lat, lon))
+        if len(vals) < c["min_points"]:
+            continue
+        vals.sort(reverse=True)
+        # the value of the min_points-th strongest grid point, so one odd grid point cannot trigger an alert
+        v, lat, lon = vals[c["min_points"] - 1]
+        samples.append((t, v, f"{lat:.1f}N {lon:.1f}E"))
+        ok.append(t)
+    if ok:
+        store.set_kv("gic_efield_last", iso(max(ok)))
+    notes.update(files_used=len(ok), strongest=round(max((s[1] for s in samples), default=0), 1))
+    if not samples:
+        return [], {}
+    group = "gic_geoelectric_na"
+    still = max(samples)[1] >= c["warning_threshold"]
+    a = gic_episode(group, lambda v, w: f"Strong geoelectric field in the US and Canada: {v:.0f} mV/km near {w}",
+                    "mV/km", samples, c["warning_threshold"], c["alert_threshold"], g["cooldown_minutes"], g["link"],
+                    f"NOAA SWPC 1D US-Canada geoelectric field model; value is the strength of the "
+                    f"{c['min_points']}-th strongest grid point.")
+    return ([a] if a else []), {group: still}
+
+
+def check_gic(cfg, fetch, now):
+    """Geomagnetically induced currents in power grids: WARNING and ALERT levels from (1) ground magnetometer
+    dB/dt in several world regions and (2) NOAA's geoelectric field model for the US and Canada."""
+    g = cfg["gic"]
+    if not g["enabled"]:
+        return [], {}
+    alerts, conds = [], {}
+    for enabled, fn in ((g["dbdt"]["enabled"], gic_dbdt), (g["geoelectric"]["enabled"], gic_geoelectric)):
+        if not enabled:
+            continue
+        try:
+            a, c = fn(cfg, fetch, now)
+            alerts += a
+            conds.update(c)
+        except Exception as e:                               # the two sources fail independently
+            log.warning("%s failed: %s", fn.__name__, e)
+            _NOTES.setdefault("gic", {})[fn.__name__ + "_error"] = f"{type(e).__name__}: {e}"[:300]
+    return alerts, conds
+
+
 CHECKS = [check_flares, check_filaments, check_coronal_hole, check_storm_forecast,
-          check_kp, check_protons, check_solar_wind, check_sunspots]
+          check_kp, check_protons, check_solar_wind, check_sunspots, check_gic]
 
 
 # --------------------------------------------------------------------------- pipeline + feed
@@ -989,6 +1228,7 @@ def run_cycle(cfg, fetch, store, now=None):
     now = now or datetime.now(timezone.utc)
     alerts, conds, results = [], {}, []
     _NOTES.clear()
+    _STATE["store"] = store
     for check in CHECKS:
         try:
             a, c = check(cfg, fetch, now)
