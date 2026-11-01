@@ -1,0 +1,32 @@
+name: Calibrate shock detector
+# One-off diagnostic: downloads NASA OMNI 1-minute solar wind for historic storms and measures shock jumps.
+# Output goes to the "calib" branch. Run from Actions > Run workflow.
+on:
+  workflow_dispatch:
+    inputs:
+      script:
+        description: "tools/ script to run"
+        default: "omni_explore.py"
+permissions:
+  contents: write
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python "tools/${{ github.event.inputs.script || 'omni_explore.py' }}"
+      - name: Save result to the calib branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir publish && cp calib* publish/
+          cd publish
+          git init -q -b calib
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A && git commit -q -m "Calibration $(date -u +%FT%TZ)"
+          git push -q -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" calib
