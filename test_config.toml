@@ -150,17 +150,18 @@ min_kp = 7.5                          # alert when Kp >= this
 lookback_hours = 6
 
 [geomagnetic.coupling]
-# Magnetic coupling during a strong storm: fires when Kp >= min_kp AND the solar wind magnetic field's
-# Phi (GSM) angle goes below phi_threshold degrees (Phi = atan2(By, Bx) in GSM, 0-360 degrees, as plotted at
-# https://www.spaceweather.gov/products/solar-wind). Either condition may come first; the alert ends when either stops.
+# Magnetic coupling during a strong storm: fires when Kp >= min_kp AND the IMF clock angle is inside
+# clock_angle_min..clock_angle_max degrees. Clock angle = atan2(By, Bz) of the interplanetary magnetic field in GSM
+# (0 = north, 180 = due south, 0-360). 150-210 means the field points within 30 degrees of south, which is when it
+# couples most strongly with Earth's field. Either condition may come first; the alert ends when either stops.
 enabled = true
 kp_url = "https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json"
 min_kp = 7
 kp_valid_hours = 3                  # a Kp reading counts while its 3-hour period is this recent
-phi_field = "phi_gsm"               # field in the rtsw magnetometer file (computed from bx_gsm, by_gsm if absent)
-phi_threshold = 160.0               # degrees
-smoothing_window = 5                # minutes; median of this many readings
-min_minutes = 5                     # Phi must stay below the threshold this long
+clock_angle_min = 150.0             # degrees
+clock_angle_max = 210.0             # degrees
+smoothing_window = 5                # minutes; By and Bz are each smoothed (median) before the angle is computed
+min_minutes = 5                     # the angle must stay in the range this long
 lookback_minutes = 180
 cooldown_minutes = 180
 level = "warning"                   # watch | warning | alert | off

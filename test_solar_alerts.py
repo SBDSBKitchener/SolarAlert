@@ -1068,72 +1068,80 @@ class GIC(Base):
 
 
 class Coupling(Base):
-    """Kp >= 7 together with the solar wind field's Phi (GSM) angle below 160 degrees."""
+    """Kp >= 7 together with the IMF clock angle inside 150-210 degrees (field pointing close to south)."""
 
-    def setup_data(self, kp, phis, kp_minutes_ago=60):
-        c = self.cfg
-        self.f.data[c["geomagnetic"]["kp"]["url"]] = []
-        self.prepend({c["geomagnetic"]["coupling"]["kp_url"]: [{"time_tag": ts(kp_minutes_ago, "T"), "Kp": kp}]})
-        n = len(phis)
-        mag = [{"time_tag": ts(n - i, "T"), "source": "A", "active": True, "bt": 10.0, "phi_gsm": p}
-               for i, p in enumerate(phis)]
+    def setup_data(self, kp, angles, kp_minutes_ago=60, base=None, kp_time=None):
+        """angles: clock angle (degrees) per minute, ending at `base` (default NOW); By, Bz built from it."""
+        import math
+        c, base = self.cfg, base or NOW
+        self.prepend({c["geomagnetic"]["coupling"]["kp_url"]: [{"time_tag": kp_time or ts(kp_minutes_ago, "T"), "Kp": kp}]})
+        n = len(angles)
+        mag = [{"time_tag": (base - timedelta(minutes=n - i)).strftime("%Y-%m-%dT%H:%M:%S"), "source": "A",
+                "active": True, "bt": 10.0, "by_gsm": 10 * math.sin(math.radians(a)),
+                "bz_gsm": 10 * math.cos(math.radians(a))} for i, a in enumerate(angles)]
         self.prepend({c["solar_wind"]["mag_url"]: mag})
 
-    def found(self):
-        return [a for a in self.cycle() if a.group == "coupling"]
+    def found(self, now=NOW):
+        return [a for a in self.cycle(now) if a.group == "coupling"]
 
     def test_fires_when_both_hold(self):
-        self.setup_data(7.33, [200.0] * 20 + [120.0] * 20)
+        self.setup_data(7.33, [90.0] * 20 + [180.0] * 20)
         new = self.found()
         self.assertEqual(len(new), 1, self.titles(new))
         self.assertEqual(new[0].level, "warning")
         self.assertIn("Kp 7.33", new[0].title)
-        self.assertIn("120", new[0].title)
-        self.assertIn("below 160 degrees", new[0].description)
+        self.assertIn("150 to 210 degree", new[0].description)
+        self.assertIn("due south", new[0].description)
         self.assertEqual(self.found(), [])                                      # not repeated
 
-    def test_needs_kp_and_needs_phi(self):
-        self.setup_data(6.67, [120.0] * 40)
+    def test_range_edges(self):
+        for angle, expect in ((150.5, 1), (209.5, 1), (140.0, 0), (220.0, 0), (0.0, 0), (350.0, 0)):
+            self.setUp()
+            self.setup_data(8.0, [angle] * 40)
+            self.assertEqual(len(self.found()), expect, angle)
+
+    def test_needs_kp_and_needs_angle(self):
+        self.setup_data(6.67, [180.0] * 40)
         self.assertEqual(self.found(), [])                                      # Kp too low
-        self.setup_data(8.0, [200.0] * 40)
-        self.assertEqual(self.found(), [])                                      # angle above 160
+        self.setup_data(8.0, [90.0] * 40)
+        self.assertEqual(self.found(), [])                                      # field not southward
 
     def test_brief_dip_is_ignored_and_it_must_last(self):
-        self.setup_data(8.0, [200.0] * 38 + [100.0, 100.0])
-        self.assertEqual(self.found(), [])                                      # only 2 minutes below
-        self.setup_data(8.0, [200.0] * 20 + [100.0] + [200.0] * 19)
+        self.setup_data(8.0, [90.0] * 38 + [180.0, 180.0])
+        self.assertEqual(self.found(), [])                                      # only 2 minutes inside
+        self.setup_data(8.0, [90.0] * 20 + [180.0] + [90.0] * 19)
         self.assertEqual(self.found(), [])                                      # single glitch is smoothed out
 
-    def test_phi_computed_from_components_when_missing(self):
-        c = self.cfg
-        mag = [{"time_tag": ts(40 - i, "T"), "source": "A", "active": True, "bt": 10.0, "bx_gsm": -5.0, "by_gsm": 5.0}
-               for i in range(40)]                                              # atan2(5,-5) = 135 degrees
-        self.setup_data(8.0, [200.0] * 40)
-        self.prepend({c["solar_wind"]["mag_url"]: mag})
-        self.assertEqual(len(self.found()), 1)
+    def test_angles_either_side_of_north_do_not_average_to_south(self):
+        self.setup_data(8.0, [350.0, 10.0] * 20)                                # flipping across north, never southward
+        self.assertEqual(self.found(), [])
 
-    def test_rearms_after_it_clears_and_cooldown(self):
-        self.setup_data(8.0, [120.0] * 40)
+    def test_either_order_kp_rising_later(self):
+        self.setup_data(8.0, [180.0] * 40, kp_time=ts(10, "T"))
+        new = self.found()
+        self.assertEqual(len(new), 1)
+        self.assertEqual(new[0].event_time, NOW - timedelta(minutes=10))        # when both first held
+
+    def test_clears_and_rearms_after_cooldown(self):
+        self.setup_data(8.0, [180.0] * 40)
         self.assertEqual(len(self.found()), 1)
-        self.setup_data(8.0, [200.0] * 40)
+        self.setup_data(8.0, [90.0] * 40)
         self.assertEqual(self.found(), [])                                      # clears the episode
-        self.setup_data(8.0, [120.0] * 40)
+        self.setup_data(8.0, [180.0] * 40)
         self.assertEqual(self.found(), [])                                      # inside the cooldown
         later = NOW + timedelta(hours=4)
-        self.f.data[self.cfg["geomagnetic"]["coupling"]["kp_url"]] = [{"time_tag": ts(-180, "T"), "Kp": 8.0}]
-        mag = [{"time_tag": (later - timedelta(minutes=40 - i)).strftime("%Y-%m-%dT%H:%M:%S"), "source": "A",
-                "active": True, "bt": 10.0, "phi_gsm": 120.0} for i in range(40)]
-        self.prepend({self.cfg["solar_wind"]["mag_url"]: mag})
-        self.assertEqual(len([a for a in self.cycle(later) if a.group == "coupling"]), 0)  # cleared first
-        self.setup_data(8.0, [120.0] * 40)
+        self.setup_data(8.0, [90.0] * 40, base=later, kp_time=(later - timedelta(minutes=30)).strftime("%Y-%m-%dT%H:%M:%S"))
+        self.assertEqual(self.found(later), [])
+        self.setup_data(8.0, [180.0] * 40, base=later, kp_time=(later - timedelta(minutes=30)).strftime("%Y-%m-%dT%H:%M:%S"))
+        self.assertEqual(len(self.found(later)), 1)
 
     def test_switch_and_level_and_validation(self):
-        self.setup_data(8.0, [120.0] * 40)
+        self.setup_data(8.0, [180.0] * 40)
         self.cfg["geomagnetic"]["coupling"]["enabled"] = False
         self.assertEqual(self.found(), [])
         self.cfg["geomagnetic"]["coupling"].update(enabled=True, level="alert")
         self.assertEqual(self.found()[0].level, "alert")
-        del self.cfg["geomagnetic"]["coupling"]["phi_threshold"]
+        del self.cfg["geomagnetic"]["coupling"]["clock_angle_min"]
         with self.assertRaises(sa.ConfigError):
             sa.validate_config(self.cfg)
 

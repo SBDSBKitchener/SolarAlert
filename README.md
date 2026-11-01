@@ -103,7 +103,7 @@ Every rule has `enabled`; threshold rules also have `threshold`, `direction`
 | Coronal hole stream | `[geomagnetic.coronal_hole] include_regex / exclude_regex` (arrival wording only; ongoing or fading streams are excluded) and `min_g_level` (default 3: the forecast must name a storm level of G3 or more) |
 | Forecast storm | `[geomagnetic.storm_forecast] min_g_level` |
 | Actual Kp | `[geomagnetic.kp] min_kp` (>=) |
-| Magnetic coupling during a storm | `[geomagnetic.coupling]`: Kp >= `min_kp` (7) and the solar wind field's Phi (GSM) angle below `phi_threshold` (160 degrees) for `min_minutes`; level set by `level` (default WARNING) |
+| Magnetic coupling during a storm | `[geomagnetic.coupling]`: Kp >= `min_kp` (7) and the IMF clock angle inside `clock_angle_min`..`clock_angle_max` (150-210 degrees, field pointing close to south) for `min_minutes`; level set by `level` (default WARNING) |
 | Protons | `[protons.ge10mev]` (100 pfu), `[protons.ge100mev]` (1 pfu) |
 | Shock arrival | `[solar_wind.shock]`: `warning` / `alert` tables (`speed_jump`, `density_ratio`, `field_ratio`, `temperature_ratio`, `min_met`), `min_density_ratio`, `hold_fraction` |
 | GIC | `[gic.dbdt]` and `[gic.geoelectric]`: `warning_threshold` / `alert_threshold`, stations, `smoothing_window`, `min_points` |
@@ -179,7 +179,7 @@ Real HEK timing fields are listed under `flares` in `health.json`.
 | Coronal hole stream | Keyword match on SWPC forecast discussion text |
 | G-storm forecast | SWPC `alerts.json` (WATCH "Category Gx Predicted", WARNING "K-index of N expected") |
 | Kp | `noaa-planetary-k-index.json` |
-| Phi (GSM) angle | `rtsw_mag_1m.json` field `phi_gsm` (computed from `bx_gsm`, `by_gsm` if missing) |
+| IMF clock angle | `rtsw_mag_1m.json` fields `by_gsm`, `bz_gsm` (angle = atan2(By, Bz)) |
 | Protons | GOES `integral-protons-1-day.json` |
 | GIC | INTERMAGNET 1-minute data via `imag-data.bgs.ac.uk` (IAGA-2002), USGS `geomag.usgs.gov/ws/data`, NOAA SWPC `json/lists/rgeojson/US-Canada-1D/` |
 | Solar wind | SWPC `plasma-1-day.json`, `mag-1-day.json` (the `-5-minute` files hold only one reading) |

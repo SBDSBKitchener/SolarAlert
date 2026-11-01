@@ -213,7 +213,7 @@ def _schema():
          ("geomagnetic.kp.min_kp", "num"), ("geomagnetic.kp.lookback_hours", "num")]
     s += [("geomagnetic.coupling.enabled", "bool"), ("geomagnetic.coupling.kp_url", "str"),
           ("geomagnetic.coupling.min_kp", "num"), ("geomagnetic.coupling.kp_valid_hours", "num"),
-          ("geomagnetic.coupling.phi_field", "str"), ("geomagnetic.coupling.phi_threshold", "num"),
+          ("geomagnetic.coupling.clock_angle_min", "num"), ("geomagnetic.coupling.clock_angle_max", "num"),
           ("geomagnetic.coupling.smoothing_window", "posint"), ("geomagnetic.coupling.min_minutes", "posint"),
           ("geomagnetic.coupling.lookback_minutes", "posint"), ("geomagnetic.coupling.cooldown_minutes", "nonneg"),
           ("geomagnetic.coupling.level", "level"), ("geomagnetic.coupling.link", "str")]
@@ -1381,12 +1381,14 @@ def check_gic(cfg, fetch, now):
 
 
 def check_coupling(cfg, fetch, now):
-    """Magnetic coupling during a strong storm: Kp is at or above `min_kp` AND the solar wind field's Phi (GSM)
-    angle has dropped below `phi_threshold` degrees. Phi is the azimuth of the interplanetary magnetic field,
-    atan2(By, Bx) in GSM coordinates, 0-360 degrees, as plotted on NOAA's real-time solar wind page. The angle is
-    smoothed (median of `smoothing_window` minutes) and must stay below the threshold for `min_minutes`, so brief
-    dips do not count. The alert starts when both conditions are true, whichever came first, and ends when either
-    stops."""
+    """Magnetic coupling during a strong storm: Kp is at or above `min_kp` AND the IMF clock angle is inside
+    the range clock_angle_min..clock_angle_max (default 150-210 degrees, i.e. pointing close to due south).
+
+    The clock angle is the direction of the interplanetary magnetic field seen from the Sun, measured in the
+    plane across the Earth-Sun line (GSM coordinates): atan2(By, Bz), 0 = north, 180 = south, 0-360 degrees.
+    By and Bz are each smoothed (median of `smoothing_window` minutes) BEFORE the angle is computed, so angles
+    either side of north cannot average into a false southward value. The angle must stay in the range for
+    `min_minutes`. The alert starts when both conditions are true, whichever came first, and ends when either stops."""
     c = cfg["geomagnetic"]["coupling"]
     if not c["enabled"] or c["level"] == "off":
         return [], {}
@@ -1398,50 +1400,52 @@ def check_coupling(cfg, fetch, now):
                 kp_now = (t, kp)
     pts = []
     for r in rtsw_rows(cfg, fetch, "mag_url"):
-        t, phi = parse_time(r.get("time_tag")), to_float(r.get(c["phi_field"]))
-        if phi is None:
-            bx, by = to_float(r.get("bx_gsm")), to_float(r.get("by_gsm"))
-            if bx is not None and by is not None:
-                phi = math.degrees(math.atan2(by, bx)) % 360
-        if t and phi is not None and now - timedelta(minutes=c["lookback_minutes"]) <= t <= now + timedelta(minutes=5):
-            pts.append((t, phi))
+        t, by, bz = parse_time(r.get("time_tag")), to_float(r.get("by_gsm")), to_float(r.get("bz_gsm"))
+        if t and by is not None and bz is not None and \
+                now - timedelta(minutes=c["lookback_minutes"]) <= t <= now + timedelta(minutes=5):
+            pts.append((t, by, bz))
     pts.sort()
     w = c["smoothing_window"]
-    smooth = [(pts[i][0], statistics.median(v for _, v in pts[i - w + 1:i + 1])) for i in range(w - 1, len(pts))]
+    smooth = []
+    for i in range(w - 1, len(pts)):
+        by = statistics.median(x[1] for x in pts[i - w + 1:i + 1])
+        bz = statistics.median(x[2] for x in pts[i - w + 1:i + 1])
+        if by or bz:
+            smooth.append((pts[i][0], math.degrees(math.atan2(by, bz)) % 360))
+    lo, hi = c["clock_angle_min"], c["clock_angle_max"]
     kp_high = kp_now is not None and kp_now[1] >= c["min_kp"]
     _NOTES["coupling"] = {"kp": None if kp_now is None else kp_now[1], "kp_high": kp_high,
-                          "latest_phi_gsm": round(smooth[-1][1], 1) if smooth else None,
-                          "phi_readings": len(pts)}
+                          "latest_clock_angle": round(smooth[-1][1], 1) if smooth else None,
+                          "readings": len(pts)}
     if not smooth:
         return [], {}                                       # no data: leave state unchanged
-    thr = c["phi_threshold"]
-    run = []                                                # the latest unbroken stretch below the threshold
+    run = []                                                # the latest unbroken stretch inside the range
     for t, v in reversed(smooth):
-        if v >= thr or (run and run[0][0] - t > timedelta(minutes=5)):
+        if not lo <= v <= hi or (run and run[0][0] - t > timedelta(minutes=5)):
             break
         run.insert(0, (t, v))
     lasted = (run[-1][0] - run[0][0]).total_seconds() / 60 + 1 if run else 0
-    below = bool(run) and smooth[-1][0] == run[-1][0] and lasted >= c["min_minutes"]
-    still = kp_high and bool(run) and smooth[-1][0] == run[-1][0]
-    if not (kp_high and below):
+    inside_now = bool(run) and smooth[-1][0] == run[-1][0]
+    still = kp_high and inside_now
+    if not (still and lasted >= c["min_minutes"]):
         return [], {"coupling": still}
-    crossed = run[0][0]
-    began = max(crossed, kp_now[0])                         # when both conditions first held
+    entered = run[0][0]
+    began = max(entered, kp_now[0])                         # when both conditions first held
     latest = run[-1][1]
     level = c["level"]
+    g = min(5, max(1, int(kp_now[1] + 0.5) - 4))
     return [Alert(
         key=f"coupling:{iso(began)}", category="Geomagnetic storm", level=level,
-        title=f"{LEVEL_LABEL[level]}: Earth's field is linking up with the solar wind during a strong storm "
-              f"(Kp {kp_now[1]:g}, Phi {latest:.0f} degrees)",
-        description=f"Geomagnetic activity is at Kp {kp_now[1]:g}, a {g_text(min(5, max(1, int(kp_now[1] + 0.5) - 4)))} storm, "
-                    f"and the direction of the magnetic field carried by the solar wind, its Phi (GSM) angle, fell below "
-                    f"{thr:g} degrees at {crossed:%Y-%m-%d %H:%M} UTC and is now {latest:.0f} degrees. "
-                    f"Phi is the compass-like direction of that field in the plane of Earth's orbit (0 to 360 degrees, "
-                    f"as shown on NOAA's real-time solar wind page). This alert flags a change in the field's direction "
-                    f"that is taken to indicate magnetic coupling between Earth and the storm, which can intensify "
-                    f"storm conditions. Level: {LEVEL_LABEL[level]}. Effects reach Earth in roughly 30-60 minutes after "
-                    f"the solar wind spacecraft sees them; watch for stronger aurora, power grid, GPS and radio "
-                    f"disturbances.",
+        title=f"{LEVEL_LABEL[level]}: Earth is coupling with the solar wind during a strong storm "
+              f"(Kp {kp_now[1]:g}, magnetic field pointing close to south)",
+        description=f"Geomagnetic activity is at Kp {kp_now[1]:g}, a {g_text(g)} storm, and the magnetic field carried by "
+                    f"the solar wind has turned to point close to due south: its clock angle entered the {lo:g} to "
+                    f"{hi:g} degree range at {entered:%Y-%m-%d %H:%M} UTC and is now {latest:.0f} degrees. "
+                    f"(The clock angle is the direction of that field across the Earth-Sun line: 0 degrees is north, "
+                    f"180 degrees is south.) A southward field links up with Earth's own magnetic field, letting solar wind "
+                    f"energy in, which can intensify storm conditions. Level: {LEVEL_LABEL[level]}. Effects reach Earth in "
+                    f"roughly 30-60 minutes after the solar wind spacecraft sees them; watch for stronger aurora and "
+                    f"for power grid, GPS and radio disturbances.",
         link=c["link"], event_time=began, group="coupling", cooldown_minutes=c["cooldown_minutes"])], \
         {"coupling": still}
 
