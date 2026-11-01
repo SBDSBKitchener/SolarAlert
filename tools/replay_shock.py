@@ -18,12 +18,12 @@ class FakeFetch:
 
 text = []
 data = {y: load(y) for y in (2024, 2025)}
-for name, y, when in EVENTS:
+for name, y, when in EVENTS[:1]+EVENTS[3:4]:
     d = data[y]
     t0 = datetime.strptime(when, "%Y-%m-%d %H:%M").replace(tzinfo=timezone.utc)
     i0 = int((t0 - d["start"]).total_seconds() // 60)
     text.append(f"\n== {name} (OMNI step at {when})")
-    for lag in (5, 10, 15, 20, 30, 60):
+    for lag in (14, 15, 16, 18, 20, 25):
         now = t0 + timedelta(minutes=lag)
         plasma, mag = [], []
         for k in range(i0 + lag - 150, i0 + lag + 1):
@@ -38,7 +38,7 @@ for name, y, when in EVENTS:
         alerts, _ = sa.check_shock(cfg, fetch, now)
         res = [(a.level, a.title) for a in alerts]
         cand = sa._NOTES["shock"]["candidates"]
-        text.append(f"  +{lag:2d} min after step: {res if res else 'no alert'}   candidates={[(c['time'][11:16], c['level'], c['waiting_for_hold_data']) for c in cand]}")
+        text.append(f"  +{lag:2d} min after step: {res if res else 'no alert'}   candidates={[(c['time'][11:16], c['level'], c['speed_jump'], c['hold_jump'], c['density_ratio'], c['field_ratio'], c['temperature_ratio']) for c in cand]}")
 open("calib.txt", "w").write("\n".join(text) + "\n")
 json.dump({"text": text}, open("calib.json", "w"))
 print("\n".join(text))
