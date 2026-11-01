@@ -1,0 +1,612 @@
+{
+ "generated": "2026-11-01T13:00:34.430474+00:00",
+ "results": {
+  "North America | NOAA geoelectric US-Canada-1D listing": {
+   "url": "https://services.swpc.noaa.gov/json/lists/rgeojson/US-Canada-1D/",
+   "status": 200,
+   "bytes": 86867,
+   "content_type": "text/html;charset=UTF-8",
+   "rows": 0,
+   "rows_with_data": 0,
+   "head": "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 3.2 Final//EN\"> | <html> |  <head> |   <title>Index of /json/lists/rgeojson/US-Canada-1D</title> |  </head> |  <body> | <h1>Index of /json/lists/rgeojson/US-Canada-1D</h1> | <pre><a href=\"?C=N;O=D\">Name</a>        ",
+   "tail": "2:58  1.2M   | <a href=\"20261101T125330-15-Efield-US-Canada.json\">20261101T125330-15-Efield-US-Canada.json</a> 2026-11-01 12:59  1.2M   | <hr></pre> | </body></html> | "
+  },
+  "North America | NOAA geoelectric InterMagEarthScope listing": {
+   "url": "https://services.swpc.noaa.gov/json/lists/rgeojson/InterMagEarthScope/",
+   "status": 200,
+   "bytes": 116909,
+   "content_type": "text/html;charset=UTF-8",
+   "rows": 0,
+   "rows_with_data": 0,
+   "head": "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 3.2 Final//EN\"> | <html> |  <head> |   <title>Index of /json/lists/rgeojson/InterMagEarthScope</title> |  </head> |  <body> | <h1>Index of /json/lists/rgeojson/InterMagEarthScope</h1> | <pre><a href=\"?C=N;O=D\">Name",
+   "tail": "field-empirical-EMTF-2022.12-0.5x0.5.json\">20261101T125330-15-Efield-empirical-EMTF-2022.12-0.5x0.5.json</a> 2026-11-01 12:59  599K   | <hr></pre> | </body></html> | "
+  },
+  "North America | USGS Boulder (BOU)": {
+   "url": "https://geomag.usgs.gov/ws/data/?id=BOU&type=variation&format=iaga2002&sampling_period=60&starttime=2026-11-01T10:00:34Z&endtime=2026-11-01T13:00:34Z",
+   "status": 200,
+   "bytes": 14271,
+   "content_type": "text/plain; charset=utf-8",
+   "rows": 180,
+   "rows_with_data": 179,
+   "newest": "2026-11-01T12:59:00+00:00",
+   "age_minutes": 1.6,
+   "head": " Format                 IAGA-2002                                    | |  Source of Data         United States Geological Survey (USGS)       | |  Station Name           Boulder                                      | |  IAGA CODE              BOU",
+   "tail": "6637.87  51022.67 | 2026-11-01 12:59:00.000 305     99999.00  99999.00  46637.96  51022.73 | 2026-11-01 13:00:00.000 305     99999.00  99999.00  99999.00  99999.00 | "
+  },
+  "North America | USGS Fredericksburg (FRD)": {
+   "url": "https://geomag.usgs.gov/ws/data/?id=FRD&type=variation&format=iaga2002&sampling_period=60&starttime=2026-11-01T10:00:34Z&endtime=2026-11-01T13:00:34Z",
+   "status": 200,
+   "bytes": 14271,
+   "content_type": "text/plain; charset=utf-8",
+   "rows": 180,
+   "rows_with_data": 179,
+   "newest": "2026-11-01T12:59:00+00:00",
+   "age_minutes": 1.6,
+   "head": " Format                 IAGA-2002                                    | |  Source of Data         United States Geological Survey (USGS)       | |  Station Name           Fredericksburg                               | |  IAGA CODE              FRD",
+   "tail": "5054.52  50027.45 | 2026-11-01 12:59:00.000 305     21389.78  -3926.72  45054.52  50027.37 | 2026-11-01 13:00:00.000 305     99999.00  99999.00  99999.00  99999.00 | "
+  },
+  "UK | BGS public GIC page": {
+   "url": "http://www.geomag.bgs.ac.uk/gicpublic",
+   "status": null,
+   "error": "HTTPError: HTTP Error 404: Not Found"
+  },
+  "UK | BGS GIC services page": {
+   "url": "https://eap.bgs.ac.uk/data_service/space_weather/gic_services.html",
+   "status": null,
+   "error": "HTTPError: HTTP Error 404: Not Found"
+  },
+  "Europe | INTERMAGNET via BGS GIN best-available (HAD)": {
+   "url": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices?Request=GetData&format=iaga2002&testObsys=0&observatoryIagaCode=HAD&samplesPerDay=minute&publicationState=Best%20available&dataStartDate=2026-11-01&dataDuration=1",
+   "status": 200,
+   "bytes": 104015,
+   "content_type": "text/plain",
+   "rows": 1440,
+   "rows_with_data": 0,
+   "note": "file has rows but every value is missing (99999)",
+   "head": " Format                 IAGA-2002                                    | |  Source of Data         British Geological Survey                    | |  Station Name           Hartland, United Kingdom                     | |  IAGA Code              HAD",
+   "tail": "9999.00  99999.00 | 2026-11-01 23:58:00.000 305     99999.00  99999.00  99999.00  99999.00 | 2026-11-01 23:59:00.000 305     99999.00  99999.00  99999.00  99999.00 | "
+  },
+  "Europe | INTERMAGNET via BGS GIN reported (HAD)": {
+   "url": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices?Request=GetData&format=iaga2002&testObsys=0&observatoryIagaCode=HAD&samplesPerDay=minute&publicationState=Reported&dataStartDate=2026-11-01&dataDuration=1",
+   "status": 200,
+   "bytes": 104015,
+   "content_type": "text/plain",
+   "rows": 1440,
+   "rows_with_data": 0,
+   "note": "file has rows but every value is missing (99999)",
+   "head": " Format                 IAGA-2002                                    | |  Source of Data         British Geological Survey                    | |  Station Name           Hartland, United Kingdom                     | |  IAGA Code              HAD",
+   "tail": "9999.00  99999.00 | 2026-11-01 23:58:00.000 305     99999.00  99999.00  99999.00  99999.00 | 2026-11-01 23:59:00.000 305     99999.00  99999.00  99999.00  99999.00 | "
+  },
+  "Europe | INTERMAGNET via BGS GIN best-available (LER)": {
+   "url": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices?Request=GetData&format=iaga2002&testObsys=0&observatoryIagaCode=LER&samplesPerDay=minute&publicationState=Best%20available&dataStartDate=2026-11-01&dataDuration=1",
+   "status": 200,
+   "bytes": 104015,
+   "content_type": "text/plain",
+   "rows": 1440,
+   "rows_with_data": 0,
+   "note": "file has rows but every value is missing (99999)",
+   "head": " Format                 IAGA-2002                                    | |  Source of Data         British Geological Survey                    | |  Station Name           Lerwick, United Kingdom                      | |  IAGA Code              LER",
+   "tail": "9999.00  99999.00 | 2026-11-01 23:58:00.000 305     99999.00  99999.00  99999.00  99999.00 | 2026-11-01 23:59:00.000 305     99999.00  99999.00  99999.00  99999.00 | "
+  },
+  "Europe | INTERMAGNET via BGS GIN reported (LER)": {
+   "url": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices?Request=GetData&format=iaga2002&testObsys=0&observatoryIagaCode=LER&samplesPerDay=minute&publicationState=Reported&dataStartDate=2026-11-01&dataDuration=1",
+   "status": 200,
+   "bytes": 104015,
+   "content_type": "text/plain",
+   "rows": 1440,
+   "rows_with_data": 0,
+   "note": "file has rows but every value is missing (99999)",
+   "head": " Format                 IAGA-2002                                    | |  Source of Data         British Geological Survey                    | |  Station Name           Lerwick, United Kingdom                      | |  IAGA Code              LER",
+   "tail": "9999.00  99999.00 | 2026-11-01 23:58:00.000 305     99999.00  99999.00  99999.00  99999.00 | 2026-11-01 23:59:00.000 305     99999.00  99999.00  99999.00  99999.00 | "
+  },
+  "Europe | INTERMAGNET via BGS GIN best-available (ESK)": {
+   "url": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices?Request=GetData&format=iaga2002&testObsys=0&observatoryIagaCode=ESK&samplesPerDay=minute&publicationState=Best%20available&dataStartDate=2026-11-01&dataDuration=1",
+   "status": 200,
+   "bytes": 104015,
+   "content_type": "text/plain",
+   "rows": 1440,
+   "rows_with_data": 0,
+   "note": "file has rows but every value is missing (99999)",
+   "head": " Format                 IAGA-2002                                    | |  Source of Data         British Geological Survey                    | |  Station Name           Eskdalemuir, United Kingdom                  | |  IAGA Code              ESK",
+   "tail": "9999.00  99999.00 | 2026-11-01 23:58:00.000 305     99999.00  99999.00  99999.00  99999.00 | 2026-11-01 23:59:00.000 305     99999.00  99999.00  99999.00  99999.00 | "
+  },
+  "Europe | INTERMAGNET via BGS GIN reported (ESK)": {
+   "url": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices?Request=GetData&format=iaga2002&testObsys=0&observatoryIagaCode=ESK&samplesPerDay=minute&publicationState=Reported&dataStartDate=2026-11-01&dataDuration=1",
+   "status": 200,
+   "bytes": 104015,
+   "content_type": "text/plain",
+   "rows": 1440,
+   "rows_with_data": 0,
+   "note": "file has rows but every value is missing (99999)",
+   "head": " Format                 IAGA-2002                                    | |  Source of Data         British Geological Survey                    | |  Station Name           Eskdalemuir, United Kingdom                  | |  IAGA Code              ESK",
+   "tail": "9999.00  99999.00 | 2026-11-01 23:58:00.000 305     99999.00  99999.00  99999.00  99999.00 | 2026-11-01 23:59:00.000 305     99999.00  99999.00  99999.00  99999.00 | "
+  },
+  "Europe | INTERMAGNET via BGS GIN best-available (NUR)": {
+   "url": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices?Request=GetData&format=iaga2002&testObsys=0&observatoryIagaCode=NUR&samplesPerDay=minute&publicationState=Best%20available&dataStartDate=2026-11-01&dataDuration=1",
+   "status": 200,
+   "bytes": 103305,
+   "content_type": "text/plain",
+   "rows": 1440,
+   "rows_with_data": 777,
+   "newest": "2026-11-01T12:56:00+00:00",
+   "age_minutes": 4.6,
+   "head": " Format                 IAGA-2002                                    | |  Source of Data         Finnish Meteorological Institute (FMI)       | |  Station Name           Nurmijarvi                                   | |  IAGA Code              NUR",
+   "tail": "9999.00  99999.00 | 2026-11-01 23:58:00.000 305     99999.00  99999.00  99999.00  99999.00 | 2026-11-01 23:59:00.000 305     99999.00  99999.00  99999.00  99999.00 | "
+  },
+  "Europe | INTERMAGNET via BGS GIN reported (NUR)": {
+   "url": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices?Request=GetData&format=iaga2002&testObsys=0&observatoryIagaCode=NUR&samplesPerDay=minute&publicationState=Reported&dataStartDate=2026-11-01&dataDuration=1",
+   "status": 200,
+   "bytes": 103802,
+   "content_type": "text/plain",
+   "rows": 1440,
+   "rows_with_data": 0,
+   "note": "file has rows but every value is missing (99999)",
+   "head": " Format                 IAGA-2002                                    | |  Source of Data         Finnish Meteorological Institute             | |  Station Name           Nurmijarvi, Finland                          | |  IAGA Code              NUR",
+   "tail": "9999.00  99999.00 | 2026-11-01 23:58:00.000 305     99999.00  99999.00  99999.00  99999.00 | 2026-11-01 23:59:00.000 305     99999.00  99999.00  99999.00  99999.00 | "
+  },
+  "Europe | INTERMAGNET via BGS GIN best-available (NGK)": {
+   "url": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices?Request=GetData&format=iaga2002&testObsys=0&observatoryIagaCode=NGK&samplesPerDay=minute&publicationState=Best%20available&dataStartDate=2026-11-01&dataDuration=1",
+   "status": 200,
+   "bytes": 103447,
+   "content_type": "text/plain",
+   "rows": 1440,
+   "rows_with_data": 777,
+   "newest": "2026-11-01T12:56:00+00:00",
+   "age_minutes": 4.6,
+   "head": " Format                 IAGA-2002                                    | |  Source of Data         GFZ                                          | |  Station Name           Niemegk                                      | |  IAGA Code              NGK",
+   "tail": "9999.00  99999.00 | 2026-11-01 23:58:00.000 305     99999.00  99999.00  99999.00  99999.00 | 2026-11-01 23:59:00.000 305     99999.00  99999.00  99999.00  99999.00 | "
+  },
+  "Europe | INTERMAGNET via BGS GIN reported (NGK)": {
+   "url": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices?Request=GetData&format=iaga2002&testObsys=0&observatoryIagaCode=NGK&samplesPerDay=minute&publicationState=Reported&dataStartDate=2026-11-01&dataDuration=1",
+   "status": 200,
+   "bytes": 103802,
+   "content_type": "text/plain",
+   "rows": 1440,
+   "rows_with_data": 0,
+   "note": "file has rows but every value is missing (99999)",
+   "head": " Format                 IAGA-2002                                    | |  Source of Data         GFZ German Research Centre for Geosciences   | |  Station Name           Niemegk, Germany                             | |  IAGA Code              NGK",
+   "tail": "9999.00  99999.00 | 2026-11-01 23:58:00.000 305     99999.00  99999.00  99999.00  99999.00 | 2026-11-01 23:59:00.000 305     99999.00  99999.00  99999.00  99999.00 | "
+  },
+  "Europe | INTERMAGNET via BGS GIN best-available (FUR)": {
+   "url": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices?Request=GetData&format=iaga2002&testObsys=0&observatoryIagaCode=FUR&samplesPerDay=minute&publicationState=Best%20available&dataStartDate=2026-11-01&dataDuration=1",
+   "status": 200,
+   "bytes": 103376,
+   "content_type": "text/plain",
+   "rows": 1440,
+   "rows_with_data": 780,
+   "newest": "2026-11-01T12:59:00+00:00",
+   "age_minutes": 1.6,
+   "head": " Format                 IAGA-2002                                    | |  Source of Data         Ludwig-Maximilians-Universitaet Munich       | |  Station Name           Fuerstenfeldbruck                            | |  IAGA Code              FUR",
+   "tail": "9999.00  99999.00 | 2026-11-01 23:58:00.000 305     99999.00  99999.00  99999.00  99999.00 | 2026-11-01 23:59:00.000 305     99999.00  99999.00  99999.00  99999.00 | "
+  },
+  "Europe | INTERMAGNET via BGS GIN reported (FUR)": {
+   "url": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices?Request=GetData&format=iaga2002&testObsys=0&observatoryIagaCode=FUR&samplesPerDay=minute&publicationState=Reported&dataStartDate=2026-11-01&dataDuration=1",
+   "status": 200,
+   "bytes": 103376,
+   "content_type": "text/plain",
+   "rows": 1440,
+   "rows_with_data": 780,
+   "newest": "2026-11-01T12:59:00+00:00",
+   "age_minutes": 1.6,
+   "head": " Format                 IAGA-2002                                    | |  Source of Data         Ludwig-Maximilians-Universitaet Munich       | |  Station Name           Fuerstenfeldbruck                            | |  IAGA Code              FUR",
+   "tail": "9999.00  99999.00 | 2026-11-01 23:58:00.000 305     99999.00  99999.00  99999.00  99999.00 | 2026-11-01 23:59:00.000 305     99999.00  99999.00  99999.00  99999.00 | "
+  },
+  "Europe | INTERMAGNET via BGS GIN best-available (HRN)": {
+   "url": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices?Request=GetData&format=iaga2002&testObsys=0&observatoryIagaCode=HRN&samplesPerDay=minute&publicationState=Best%20available&dataStartDate=2026-11-01&dataDuration=1",
+   "status": 200,
+   "bytes": 103376,
+   "content_type": "text/plain",
+   "rows": 1440,
+   "rows_with_data": 778,
+   "newest": "2026-11-01T12:57:00+00:00",
+   "age_minutes": 3.6,
+   "head": " Format                 IAGA-2002                                    | |  Source of Data         Institute of Geophysics Polish Academy of Sci| |  Station Name           Hornsund                                     | |  IAGA Code              HRN",
+   "tail": "9999.00  99999.00 | 2026-11-01 23:58:00.000 305     99999.00  99999.00  99999.00  99999.00 | 2026-11-01 23:59:00.000 305     99999.00  99999.00  99999.00  99999.00 | "
+  },
+  "Europe | INTERMAGNET via BGS GIN reported (HRN)": {
+   "url": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices?Request=GetData&format=iaga2002&testObsys=0&observatoryIagaCode=HRN&samplesPerDay=minute&publicationState=Reported&dataStartDate=2026-11-01&dataDuration=1",
+   "status": 200,
+   "bytes": 103376,
+   "content_type": "text/plain",
+   "rows": 1440,
+   "rows_with_data": 778,
+   "newest": "2026-11-01T12:57:00+00:00",
+   "age_minutes": 3.6,
+   "head": " Format                 IAGA-2002                                    | |  Source of Data         Institute of Geophysics Polish Academy of Sci| |  Station Name           Hornsund                                     | |  IAGA Code              HRN",
+   "tail": "9999.00  99999.00 | 2026-11-01 23:58:00.000 305     99999.00  99999.00  99999.00  99999.00 | 2026-11-01 23:59:00.000 305     99999.00  99999.00  99999.00  99999.00 | "
+  },
+  "Europe | INTERMAGNET via BGS GIN best-available (BEL)": {
+   "url": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices?Request=GetData&format=iaga2002&testObsys=0&observatoryIagaCode=BEL&samplesPerDay=minute&publicationState=Best%20available&dataStartDate=2026-11-01&dataDuration=1",
+   "status": 200,
+   "bytes": 103376,
+   "content_type": "text/plain",
+   "rows": 1440,
+   "rows_with_data": 777,
+   "newest": "2026-11-01T12:56:00+00:00",
+   "age_minutes": 4.6,
+   "head": " Format                 IAGA-2002                                    | |  Source of Data         Institute of Geophysics Polish Academy of Sci| |  Station Name           Belsk                                        | |  IAGA Code              BEL",
+   "tail": "9999.00  99999.00 | 2026-11-01 23:58:00.000 305     99999.00  99999.00  99999.00  99999.00 | 2026-11-01 23:59:00.000 305     99999.00  99999.00  99999.00  99999.00 | "
+  },
+  "Europe | INTERMAGNET via BGS GIN reported (BEL)": {
+   "url": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices?Request=GetData&format=iaga2002&testObsys=0&observatoryIagaCode=BEL&samplesPerDay=minute&publicationState=Reported&dataStartDate=2026-11-01&dataDuration=1",
+   "status": 200,
+   "bytes": 103376,
+   "content_type": "text/plain",
+   "rows": 1440,
+   "rows_with_data": 777,
+   "newest": "2026-11-01T12:56:00+00:00",
+   "age_minutes": 4.6,
+   "head": " Format                 IAGA-2002                                    | |  Source of Data         Institute of Geophysics Polish Academy of Sci| |  Station Name           Belsk                                        | |  IAGA Code              BEL",
+   "tail": "9999.00  99999.00 | 2026-11-01 23:58:00.000 305     99999.00  99999.00  99999.00  99999.00 | 2026-11-01 23:59:00.000 305     99999.00  99999.00  99999.00  99999.00 | "
+  },
+  "Russia | INTERMAGNET via BGS GIN best-available (MOS)": {
+   "url": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices?Request=GetData&format=iaga2002&testObsys=0&observatoryIagaCode=MOS&samplesPerDay=minute&publicationState=Best%20available&dataStartDate=2026-11-01&dataDuration=1",
+   "status": null,
+   "error": "HTTPError: HTTP Error 400: Bad Request"
+  },
+  "Russia | INTERMAGNET via BGS GIN reported (MOS)": {
+   "url": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices?Request=GetData&format=iaga2002&testObsys=0&observatoryIagaCode=MOS&samplesPerDay=minute&publicationState=Reported&dataStartDate=2026-11-01&dataDuration=1",
+   "status": null,
+   "error": "HTTPError: HTTP Error 400: Bad Request"
+  },
+  "Russia | INTERMAGNET via BGS GIN best-available (IRT)": {
+   "url": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices?Request=GetData&format=iaga2002&testObsys=0&observatoryIagaCode=IRT&samplesPerDay=minute&publicationState=Best%20available&dataStartDate=2026-11-01&dataDuration=1",
+   "status": 200,
+   "bytes": 103802,
+   "content_type": "text/plain",
+   "rows": 1440,
+   "rows_with_data": 0,
+   "note": "file has rows but every value is missing (99999)",
+   "head": " Format                 IAGA-2002                                    | |  Source of Data         Institute of Solar-Terrestrial Physics, Radio| |  Station Name           Irkutsk (Patrony), Russia                    | |  IAGA Code              IRT",
+   "tail": "9999.00  99999.00 | 2026-11-01 23:58:00.000 305     99999.00  99999.00  99999.00  99999.00 | 2026-11-01 23:59:00.000 305     99999.00  99999.00  99999.00  99999.00 | "
+  },
+  "Russia | INTERMAGNET via BGS GIN reported (IRT)": {
+   "url": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices?Request=GetData&format=iaga2002&testObsys=0&observatoryIagaCode=IRT&samplesPerDay=minute&publicationState=Reported&dataStartDate=2026-11-01&dataDuration=1",
+   "status": 200,
+   "bytes": 103802,
+   "content_type": "text/plain",
+   "rows": 1440,
+   "rows_with_data": 0,
+   "note": "file has rows but every value is missing (99999)",
+   "head": " Format                 IAGA-2002                                    | |  Source of Data         Institute of Solar-Terrestrial Physics, Radio| |  Station Name           Irkutsk (Patrony), Russia                    | |  IAGA Code              IRT",
+   "tail": "9999.00  99999.00 | 2026-11-01 23:58:00.000 305     99999.00  99999.00  99999.00  99999.00 | 2026-11-01 23:59:00.000 305     99999.00  99999.00  99999.00  99999.00 | "
+  },
+  "Russia | INTERMAGNET via BGS GIN best-available (NVS)": {
+   "url": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices?Request=GetData&format=iaga2002&testObsys=0&observatoryIagaCode=NVS&samplesPerDay=minute&publicationState=Best%20available&dataStartDate=2026-11-01&dataDuration=1",
+   "status": 200,
+   "bytes": 103802,
+   "content_type": "text/plain",
+   "rows": 1440,
+   "rows_with_data": 0,
+   "note": "file has rows but every value is missing (99999)",
+   "head": " Format                 IAGA-2002                                    | |  Source of Data         Russian Academy of Sciences                  | |  Station Name           Novosibirsk, Russia                          | |  IAGA Code              NVS",
+   "tail": "9999.00  99999.00 | 2026-11-01 23:58:00.000 305     99999.00  99999.00  99999.00  99999.00 | 2026-11-01 23:59:00.000 305     99999.00  99999.00  99999.00  99999.00 | "
+  },
+  "Russia | INTERMAGNET via BGS GIN reported (NVS)": {
+   "url": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices?Request=GetData&format=iaga2002&testObsys=0&observatoryIagaCode=NVS&samplesPerDay=minute&publicationState=Reported&dataStartDate=2026-11-01&dataDuration=1",
+   "status": 200,
+   "bytes": 103802,
+   "content_type": "text/plain",
+   "rows": 1440,
+   "rows_with_data": 0,
+   "note": "file has rows but every value is missing (99999)",
+   "head": " Format                 IAGA-2002                                    | |  Source of Data         Russian Academy of Sciences                  | |  Station Name           Novosibirsk, Russia                          | |  IAGA Code              NVS",
+   "tail": "9999.00  99999.00 | 2026-11-01 23:58:00.000 305     99999.00  99999.00  99999.00  99999.00 | 2026-11-01 23:59:00.000 305     99999.00  99999.00  99999.00  99999.00 | "
+  },
+  "Russia | INTERMAGNET via BGS GIN best-available (SPG)": {
+   "url": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices?Request=GetData&format=iaga2002&testObsys=0&observatoryIagaCode=SPG&samplesPerDay=minute&publicationState=Best%20available&dataStartDate=2026-11-01&dataDuration=1",
+   "status": 200,
+   "bytes": 103802,
+   "content_type": "text/plain",
+   "rows": 1440,
+   "rows_with_data": 0,
+   "note": "file has rows but every value is missing (99999)",
+   "head": " Format                 IAGA-2002                                    | |  Source of Data         Institute de Physique du Globe de Paris      | |  Station Name           Saint Petersburg, Russia                     | |  IAGA Code              SPG",
+   "tail": "9999.00  99999.00 | 2026-11-01 23:58:00.000 305     99999.00  99999.00  99999.00  99999.00 | 2026-11-01 23:59:00.000 305     99999.00  99999.00  99999.00  99999.00 | "
+  },
+  "Russia | INTERMAGNET via BGS GIN reported (SPG)": {
+   "url": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices?Request=GetData&format=iaga2002&testObsys=0&observatoryIagaCode=SPG&samplesPerDay=minute&publicationState=Reported&dataStartDate=2026-11-01&dataDuration=1",
+   "status": 200,
+   "bytes": 103802,
+   "content_type": "text/plain",
+   "rows": 1440,
+   "rows_with_data": 0,
+   "note": "file has rows but every value is missing (99999)",
+   "head": " Format                 IAGA-2002                                    | |  Source of Data         Institute de Physique du Globe de Paris      | |  Station Name           Saint Petersburg, Russia                     | |  IAGA Code              SPG",
+   "tail": "9999.00  99999.00 | 2026-11-01 23:58:00.000 305     99999.00  99999.00  99999.00  99999.00 | 2026-11-01 23:59:00.000 305     99999.00  99999.00  99999.00  99999.00 | "
+  },
+  "Russia | INTERMAGNET via BGS GIN best-available (KHB)": {
+   "url": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices?Request=GetData&format=iaga2002&testObsys=0&observatoryIagaCode=KHB&samplesPerDay=minute&publicationState=Best%20available&dataStartDate=2026-11-01&dataDuration=1",
+   "status": 200,
+   "bytes": 103802,
+   "content_type": "text/plain",
+   "rows": 1440,
+   "rows_with_data": 0,
+   "note": "file has rows but every value is missing (99999)",
+   "head": " Format                 IAGA-2002                                    | |  Source of Data         Inst of Space Phys Research                  | |  Station Name           Khabarovsk, Russia                           | |  IAGA Code              KHB",
+   "tail": "9999.00  99999.00 | 2026-11-01 23:58:00.000 305     99999.00  99999.00  99999.00  99999.00 | 2026-11-01 23:59:00.000 305     99999.00  99999.00  99999.00  99999.00 | "
+  },
+  "Russia | INTERMAGNET via BGS GIN reported (KHB)": {
+   "url": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices?Request=GetData&format=iaga2002&testObsys=0&observatoryIagaCode=KHB&samplesPerDay=minute&publicationState=Reported&dataStartDate=2026-11-01&dataDuration=1",
+   "status": 200,
+   "bytes": 103802,
+   "content_type": "text/plain",
+   "rows": 1440,
+   "rows_with_data": 0,
+   "note": "file has rows but every value is missing (99999)",
+   "head": " Format                 IAGA-2002                                    | |  Source of Data         Inst of Space Phys Research                  | |  Station Name           Khabarovsk, Russia                           | |  IAGA Code              KHB",
+   "tail": "9999.00  99999.00 | 2026-11-01 23:58:00.000 305     99999.00  99999.00  99999.00  99999.00 | 2026-11-01 23:59:00.000 305     99999.00  99999.00  99999.00  99999.00 | "
+  },
+  "Asia | INTERMAGNET via BGS GIN best-available (KAK)": {
+   "url": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices?Request=GetData&format=iaga2002&testObsys=0&observatoryIagaCode=KAK&samplesPerDay=minute&publicationState=Best%20available&dataStartDate=2026-11-01&dataDuration=1",
+   "status": 200,
+   "bytes": 103731,
+   "content_type": "text/plain",
+   "rows": 1440,
+   "rows_with_data": 770,
+   "newest": "2026-11-01T12:49:00+00:00",
+   "age_minutes": 11.6,
+   "head": " Format                 IAGA-2002                                    | |  Source of Data         Japan Meteorological Agency                  | |  Station Name           Kakioka                                      | |  IAGA Code              KAK",
+   "tail": "9999.00  99999.00 | 2026-11-01 23:58:00.000 305     99999.00  99999.00  99999.00  99999.00 | 2026-11-01 23:59:00.000 305     99999.00  99999.00  99999.00  99999.00 | "
+  },
+  "Asia | INTERMAGNET via BGS GIN reported (KAK)": {
+   "url": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices?Request=GetData&format=iaga2002&testObsys=0&observatoryIagaCode=KAK&samplesPerDay=minute&publicationState=Reported&dataStartDate=2026-11-01&dataDuration=1",
+   "status": 200,
+   "bytes": 103802,
+   "content_type": "text/plain",
+   "rows": 1440,
+   "rows_with_data": 0,
+   "note": "file has rows but every value is missing (99999)",
+   "head": " Format                 IAGA-2002                                    | |  Source of Data         Kyoto University                             | |  Station Name           Kakioka, Japan                               | |  IAGA Code              KAK",
+   "tail": "9999.00  99999.00 | 2026-11-01 23:58:00.000 305     99999.00  99999.00  99999.00  99999.00 | 2026-11-01 23:59:00.000 305     99999.00  99999.00  99999.00  99999.00 | "
+  },
+  "Asia | INTERMAGNET via BGS GIN best-available (MMB)": {
+   "url": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices?Request=GetData&format=iaga2002&testObsys=0&observatoryIagaCode=MMB&samplesPerDay=minute&publicationState=Best%20available&dataStartDate=2026-11-01&dataDuration=1",
+   "status": 200,
+   "bytes": 103731,
+   "content_type": "text/plain",
+   "rows": 1440,
+   "rows_with_data": 765,
+   "newest": "2026-11-01T12:44:00+00:00",
+   "age_minutes": 16.6,
+   "head": " Format                 IAGA-2002                                    | |  Source of Data         Japan Meteorological Agency                  | |  Station Name           Memambetsu                                   | |  IAGA Code              MMB",
+   "tail": "9999.00  99999.00 | 2026-11-01 23:58:00.000 305     99999.00  99999.00  99999.00  99999.00 | 2026-11-01 23:59:00.000 305     99999.00  99999.00  99999.00  99999.00 | "
+  },
+  "Asia | INTERMAGNET via BGS GIN reported (MMB)": {
+   "url": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices?Request=GetData&format=iaga2002&testObsys=0&observatoryIagaCode=MMB&samplesPerDay=minute&publicationState=Reported&dataStartDate=2026-11-01&dataDuration=1",
+   "status": 200,
+   "bytes": 103802,
+   "content_type": "text/plain",
+   "rows": 1440,
+   "rows_with_data": 0,
+   "note": "file has rows but every value is missing (99999)",
+   "head": " Format                 IAGA-2002                                    | |  Source of Data         Kyoto University                             | |  Station Name           Memambetsu, Japan                            | |  IAGA Code              MMB",
+   "tail": "9999.00  99999.00 | 2026-11-01 23:58:00.000 305     99999.00  99999.00  99999.00  99999.00 | 2026-11-01 23:59:00.000 305     99999.00  99999.00  99999.00  99999.00 | "
+  },
+  "Asia | INTERMAGNET via BGS GIN best-available (BJI)": {
+   "url": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices?Request=GetData&format=iaga2002&testObsys=0&observatoryIagaCode=BJI&samplesPerDay=minute&publicationState=Best%20available&dataStartDate=2026-11-01&dataDuration=1",
+   "status": null,
+   "error": "HTTPError: HTTP Error 400: Bad Request"
+  },
+  "Asia | INTERMAGNET via BGS GIN reported (BJI)": {
+   "url": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices?Request=GetData&format=iaga2002&testObsys=0&observatoryIagaCode=BJI&samplesPerDay=minute&publicationState=Reported&dataStartDate=2026-11-01&dataDuration=1",
+   "status": null,
+   "error": "HTTPError: HTTP Error 400: Bad Request"
+  },
+  "Asia | INTERMAGNET via BGS GIN best-available (KNY)": {
+   "url": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices?Request=GetData&format=iaga2002&testObsys=0&observatoryIagaCode=KNY&samplesPerDay=minute&publicationState=Best%20available&dataStartDate=2026-11-01&dataDuration=1",
+   "status": 200,
+   "bytes": 103731,
+   "content_type": "text/plain",
+   "rows": 1440,
+   "rows_with_data": 765,
+   "newest": "2026-11-01T12:44:00+00:00",
+   "age_minutes": 16.6,
+   "head": " Format                 IAGA-2002                                    | |  Source of Data         Japan Meteorological Agency                  | |  Station Name           Kanoya                                       | |  IAGA Code              KNY",
+   "tail": "9999.00  99999.00 | 2026-11-01 23:58:00.000 305     99999.00  99999.00  99999.00  99999.00 | 2026-11-01 23:59:00.000 305     99999.00  99999.00  99999.00  99999.00 | "
+  },
+  "Asia | INTERMAGNET via BGS GIN reported (KNY)": {
+   "url": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices?Request=GetData&format=iaga2002&testObsys=0&observatoryIagaCode=KNY&samplesPerDay=minute&publicationState=Reported&dataStartDate=2026-11-01&dataDuration=1",
+   "status": 200,
+   "bytes": 103802,
+   "content_type": "text/plain",
+   "rows": 1440,
+   "rows_with_data": 0,
+   "note": "file has rows but every value is missing (99999)",
+   "head": " Format                 IAGA-2002                                    | |  Source of Data         Kyoto University                             | |  Station Name           Kanoya, Japan                                | |  IAGA Code              KNY",
+   "tail": "9999.00  99999.00 | 2026-11-01 23:58:00.000 305     99999.00  99999.00  99999.00  99999.00 | 2026-11-01 23:59:00.000 305     99999.00  99999.00  99999.00  99999.00 | "
+  },
+  "Asia | INTERMAGNET via BGS GIN best-available (KDU)": {
+   "url": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices?Request=GetData&format=iaga2002&testObsys=0&observatoryIagaCode=KDU&samplesPerDay=minute&publicationState=Best%20available&dataStartDate=2026-11-01&dataDuration=1",
+   "status": 200,
+   "bytes": 103802,
+   "content_type": "text/plain",
+   "rows": 1440,
+   "rows_with_data": 778,
+   "newest": "2026-11-01T12:57:00+00:00",
+   "age_minutes": 3.6,
+   "head": " Format                 IAGA-2002                                    | |  Source of Data         Geoscience Australia                         | |  Station Name           Kakadu                                       | |  IAGA Code              KDU",
+   "tail": "9999.00  99999.00 | 2026-11-01 23:58:00.000 305     99999.00  99999.00  99999.00  99999.00 | 2026-11-01 23:59:00.000 305     99999.00  99999.00  99999.00  99999.00 | "
+  },
+  "Asia | INTERMAGNET via BGS GIN reported (KDU)": {
+   "url": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices?Request=GetData&format=iaga2002&testObsys=0&observatoryIagaCode=KDU&samplesPerDay=minute&publicationState=Reported&dataStartDate=2026-11-01&dataDuration=1",
+   "status": 200,
+   "bytes": 103802,
+   "content_type": "text/plain",
+   "rows": 1440,
+   "rows_with_data": 0,
+   "note": "file has rows but every value is missing (99999)",
+   "head": " Format                 IAGA-2002                                    | |  Source of Data         Geoscience Australia                         | |  Station Name           Kakadu, Australia                            | |  IAGA Code              KDU",
+   "tail": "9999.00  99999.00 | 2026-11-01 23:58:00.000 305     99999.00  99999.00  99999.00  99999.00 | 2026-11-01 23:59:00.000 305     99999.00  99999.00  99999.00  99999.00 | "
+  },
+  "Australasia | INTERMAGNET via BGS GIN best-available (CNB)": {
+   "url": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices?Request=GetData&format=iaga2002&testObsys=0&observatoryIagaCode=CNB&samplesPerDay=minute&publicationState=Best%20available&dataStartDate=2026-11-01&dataDuration=1",
+   "status": 200,
+   "bytes": 103802,
+   "content_type": "text/plain",
+   "rows": 1440,
+   "rows_with_data": 778,
+   "newest": "2026-11-01T12:57:00+00:00",
+   "age_minutes": 3.6,
+   "head": " Format                 IAGA-2002                                    | |  Source of Data         Geoscience Australia                         | |  Station Name           Canberra                                     | |  IAGA Code              CNB",
+   "tail": "9999.00  99999.00 | 2026-11-01 23:58:00.000 305     99999.00  99999.00  99999.00  99999.00 | 2026-11-01 23:59:00.000 305     99999.00  99999.00  99999.00  99999.00 | "
+  },
+  "Australasia | INTERMAGNET via BGS GIN reported (CNB)": {
+   "url": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices?Request=GetData&format=iaga2002&testObsys=0&observatoryIagaCode=CNB&samplesPerDay=minute&publicationState=Reported&dataStartDate=2026-11-01&dataDuration=1",
+   "status": 200,
+   "bytes": 103802,
+   "content_type": "text/plain",
+   "rows": 1440,
+   "rows_with_data": 0,
+   "note": "file has rows but every value is missing (99999)",
+   "head": " Format                 IAGA-2002                                    | |  Source of Data         Geoscience Australia                         | |  Station Name           Canberra, Australia                          | |  IAGA Code              CNB",
+   "tail": "9999.00  99999.00 | 2026-11-01 23:58:00.000 305     99999.00  99999.00  99999.00  99999.00 | 2026-11-01 23:59:00.000 305     99999.00  99999.00  99999.00  99999.00 | "
+  },
+  "Australasia | INTERMAGNET via BGS GIN best-available (CTA)": {
+   "url": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices?Request=GetData&format=iaga2002&testObsys=0&observatoryIagaCode=CTA&samplesPerDay=minute&publicationState=Best%20available&dataStartDate=2026-11-01&dataDuration=1",
+   "status": 200,
+   "bytes": 103802,
+   "content_type": "text/plain",
+   "rows": 1440,
+   "rows_with_data": 777,
+   "newest": "2026-11-01T12:56:00+00:00",
+   "age_minutes": 4.6,
+   "head": " Format                 IAGA-2002                                    | |  Source of Data         Geoscience Australia                         | |  Station Name           Charters Towers                              | |  IAGA Code              CTA",
+   "tail": "9999.00  99999.00 | 2026-11-01 23:58:00.000 305     99999.00  99999.00  99999.00  99999.00 | 2026-11-01 23:59:00.000 305     99999.00  99999.00  99999.00  99999.00 | "
+  },
+  "Australasia | INTERMAGNET via BGS GIN reported (CTA)": {
+   "url": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices?Request=GetData&format=iaga2002&testObsys=0&observatoryIagaCode=CTA&samplesPerDay=minute&publicationState=Reported&dataStartDate=2026-11-01&dataDuration=1",
+   "status": 200,
+   "bytes": 103802,
+   "content_type": "text/plain",
+   "rows": 1440,
+   "rows_with_data": 0,
+   "note": "file has rows but every value is missing (99999)",
+   "head": " Format                 IAGA-2002                                    | |  Source of Data         Geoscience Australia                         | |  Station Name           Charters Towers, Australia                   | |  IAGA Code              CTA",
+   "tail": "9999.00  99999.00 | 2026-11-01 23:58:00.000 305     99999.00  99999.00  99999.00  99999.00 | 2026-11-01 23:59:00.000 305     99999.00  99999.00  99999.00  99999.00 | "
+  },
+  "Australasia | INTERMAGNET via BGS GIN best-available (EYR)": {
+   "url": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices?Request=GetData&format=iaga2002&testObsys=0&observatoryIagaCode=EYR&samplesPerDay=minute&publicationState=Best%20available&dataStartDate=2026-11-01&dataDuration=1",
+   "status": 200,
+   "bytes": 103802,
+   "content_type": "text/plain",
+   "rows": 1440,
+   "rows_with_data": 720,
+   "newest": "2026-11-01T11:59:00+00:00",
+   "age_minutes": 61.6,
+   "head": " Format                 IAGA-2002                                    | |  Source of Data         GNS Science, New Zealand                     | |  Station Name           Eyrewell                                     | |  IAGA Code              EYR",
+   "tail": "9999.00  99999.00 | 2026-11-01 23:58:00.000 305     99999.00  99999.00  99999.00  99999.00 | 2026-11-01 23:59:00.000 305     99999.00  99999.00  99999.00  99999.00 | "
+  },
+  "Australasia | INTERMAGNET via BGS GIN reported (EYR)": {
+   "url": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices?Request=GetData&format=iaga2002&testObsys=0&observatoryIagaCode=EYR&samplesPerDay=minute&publicationState=Reported&dataStartDate=2026-11-01&dataDuration=1",
+   "status": 200,
+   "bytes": 103802,
+   "content_type": "text/plain",
+   "rows": 1440,
+   "rows_with_data": 0,
+   "note": "file has rows but every value is missing (99999)",
+   "head": " Format                 IAGA-2002                                    | |  Source of Data         Institute of Geological and Nuclear Sciences | |  Station Name           Eyrewell, New Zealand                        | |  IAGA Code              EYR",
+   "tail": "9999.00  99999.00 | 2026-11-01 23:58:00.000 305     99999.00  99999.00  99999.00  99999.00 | 2026-11-01 23:59:00.000 305     99999.00  99999.00  99999.00  99999.00 | "
+  },
+  "Australasia | INTERMAGNET via BGS GIN best-available (API)": {
+   "url": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices?Request=GetData&format=iaga2002&testObsys=0&observatoryIagaCode=API&samplesPerDay=minute&publicationState=Best%20available&dataStartDate=2026-11-01&dataDuration=1",
+   "status": 200,
+   "bytes": 103873,
+   "content_type": "text/plain",
+   "rows": 1440,
+   "rows_with_data": 421,
+   "newest": "2026-11-01T07:32:00+00:00",
+   "age_minutes": 328.6,
+   "head": " Format                 IAGA-2002                                    | |  Source of Data         GNS Science, New Zealand                     | |  Station Name           Apia                                         | |  IAGA Code              API",
+   "tail": "9999.00  99999.00 | 2026-11-01 23:58:00.000 305     99999.00  99999.00  99999.00  99999.00 | 2026-11-01 23:59:00.000 305     99999.00  99999.00  99999.00  99999.00 | "
+  },
+  "Australasia | INTERMAGNET via BGS GIN reported (API)": {
+   "url": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices?Request=GetData&format=iaga2002&testObsys=0&observatoryIagaCode=API&samplesPerDay=minute&publicationState=Reported&dataStartDate=2026-11-01&dataDuration=1",
+   "status": 200,
+   "bytes": 103802,
+   "content_type": "text/plain",
+   "rows": 1440,
+   "rows_with_data": 0,
+   "note": "file has rows but every value is missing (99999)",
+   "head": " Format                 IAGA-2002                                    | |  Source of Data         Institute of Geological and Nuclear Sciences | |  Station Name           Apia, Western Samoa                          | |  IAGA Code              API",
+   "tail": "9999.00  99999.00 | 2026-11-01 23:58:00.000 305     99999.00  99999.00  99999.00  99999.00 | 2026-11-01 23:59:00.000 305     99999.00  99999.00  99999.00  99999.00 | "
+  },
+  "South America | INTERMAGNET via BGS GIN best-available (VSS)": {
+   "url": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices?Request=GetData&format=iaga2002&testObsys=0&observatoryIagaCode=VSS&samplesPerDay=minute&publicationState=Best%20available&dataStartDate=2026-11-01&dataDuration=1",
+   "status": 200,
+   "bytes": 103447,
+   "content_type": "text/plain",
+   "rows": 1440,
+   "rows_with_data": 750,
+   "newest": "2026-11-01T12:29:00+00:00",
+   "age_minutes": 31.6,
+   "head": " Format                 IAGA-2002                                    | |  Source of Data         ON and GFZ                                   | |  Station Name           Vassouras                                    | |  IAGA Code              VSS",
+   "tail": "9999.00  99999.00 | 2026-11-01 23:58:00.000 305     99999.00  99999.00  99999.00  99999.00 | 2026-11-01 23:59:00.000 305     99999.00  99999.00  99999.00  99999.00 | "
+  },
+  "South America | INTERMAGNET via BGS GIN reported (VSS)": {
+   "url": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices?Request=GetData&format=iaga2002&testObsys=0&observatoryIagaCode=VSS&samplesPerDay=minute&publicationState=Reported&dataStartDate=2026-11-01&dataDuration=1",
+   "status": 200,
+   "bytes": 103802,
+   "content_type": "text/plain",
+   "rows": 1440,
+   "rows_with_data": 0,
+   "note": "file has rows but every value is missing (99999)",
+   "head": " Format                 IAGA-2002                                    | |  Source of Data         Observatorio Nacional (Brazil)               | |  Station Name           Vassouras, Brazil                            | |  IAGA Code              VSS",
+   "tail": "9999.00  99999.00 | 2026-11-01 23:58:00.000 305     99999.00  99999.00  99999.00  99999.00 | 2026-11-01 23:59:00.000 305     99999.00  99999.00  99999.00  99999.00 | "
+  },
+  "South America | INTERMAGNET via BGS GIN best-available (TRW)": {
+   "url": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices?Request=GetData&format=iaga2002&testObsys=0&observatoryIagaCode=TRW&samplesPerDay=minute&publicationState=Best%20available&dataStartDate=2026-11-01&dataDuration=1",
+   "status": null,
+   "error": "HTTPError: HTTP Error 400: Bad Request"
+  },
+  "South America | INTERMAGNET via BGS GIN reported (TRW)": {
+   "url": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices?Request=GetData&format=iaga2002&testObsys=0&observatoryIagaCode=TRW&samplesPerDay=minute&publicationState=Reported&dataStartDate=2026-11-01&dataDuration=1",
+   "status": null,
+   "error": "HTTPError: HTTP Error 400: Bad Request"
+  },
+  "South America | INTERMAGNET via BGS GIN best-available (PIL)": {
+   "url": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices?Request=GetData&format=iaga2002&testObsys=0&observatoryIagaCode=PIL&samplesPerDay=minute&publicationState=Best%20available&dataStartDate=2026-11-01&dataDuration=1",
+   "status": 200,
+   "bytes": 103802,
+   "content_type": "text/plain",
+   "rows": 1440,
+   "rows_with_data": 0,
+   "note": "file has rows but every value is missing (99999)",
+   "head": " Format                 IAGA-2002                                    | |  Source of Data         Edinburgh INTERMAGNET GIN                    | |  Station Name           Pilar, Argentina                             | |  IAGA Code              PIL",
+   "tail": "9999.00  99999.00 | 2026-11-01 23:58:00.000 305     99999.00  99999.00  99999.00  99999.00 | 2026-11-01 23:59:00.000 305     99999.00  99999.00  99999.00  99999.00 | "
+  },
+  "South America | INTERMAGNET via BGS GIN reported (PIL)": {
+   "url": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices?Request=GetData&format=iaga2002&testObsys=0&observatoryIagaCode=PIL&samplesPerDay=minute&publicationState=Reported&dataStartDate=2026-11-01&dataDuration=1",
+   "status": 200,
+   "bytes": 103802,
+   "content_type": "text/plain",
+   "rows": 1440,
+   "rows_with_data": 0,
+   "note": "file has rows but every value is missing (99999)",
+   "head": " Format                 IAGA-2002                                    | |  Source of Data         Edinburgh INTERMAGNET GIN                    | |  Station Name           Pilar, Argentina                             | |  IAGA Code              PIL",
+   "tail": "9999.00  99999.00 | 2026-11-01 23:58:00.000 305     99999.00  99999.00  99999.00  99999.00 | 2026-11-01 23:59:00.000 305     99999.00  99999.00  99999.00  99999.00 | "
+  },
+  "South America | INTERMAGNET via BGS GIN best-available (HUA)": {
+   "url": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices?Request=GetData&format=iaga2002&testObsys=0&observatoryIagaCode=HUA&samplesPerDay=minute&publicationState=Best%20available&dataStartDate=2026-11-01&dataDuration=1",
+   "status": 200,
+   "bytes": 103802,
+   "content_type": "text/plain",
+   "rows": 1440,
+   "rows_with_data": 0,
+   "note": "file has rows but every value is missing (99999)",
+   "head": " Format                 IAGA-2002                                    | |  Source of Data         Instituto Geofisico del Peru                 | |  Station Name           Huancayo, Peru                               | |  IAGA Code              HUA",
+   "tail": "9999.00  99999.00 | 2026-11-01 23:58:00.000 305     99999.00  99999.00  99999.00  99999.00 | 2026-11-01 23:59:00.000 305     99999.00  99999.00  99999.00  99999.00 | "
+  },
+  "South America | INTERMAGNET via BGS GIN reported (HUA)": {
+   "url": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices?Request=GetData&format=iaga2002&testObsys=0&observatoryIagaCode=HUA&samplesPerDay=minute&publicationState=Reported&dataStartDate=2026-11-01&dataDuration=1",
+   "status": 200,
+   "bytes": 103802,
+   "content_type": "text/plain",
+   "rows": 1440,
+   "rows_with_data": 0,
+   "note": "file has rows but every value is missing (99999)",
+   "head": " Format                 IAGA-2002                                    | |  Source of Data         Instituto Geofisico del Peru                 | |  Station Name           Huancayo, Peru                               | |  IAGA Code              HUA",
+   "tail": "9999.00  99999.00 | 2026-11-01 23:58:00.000 305     99999.00  99999.00  99999.00  99999.00 | 2026-11-01 23:59:00.000 305     99999.00  99999.00  99999.00  99999.00 | "
+  }
+ }
+}
