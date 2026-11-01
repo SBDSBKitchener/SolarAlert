@@ -70,7 +70,7 @@ def candidates(d, lo, hi, dv_min=20.0):
         n0, n1 = j["N"]
         b0, b1 = j["B"]
         t0, t1 = j["T"]
-        hold = window(d["V"], c["i"] + 8, c["i"] + 15, 5)       # fixed 7-minute window once confirmed
+        hold = window(d["V"], c["i"] + 8, c["i"] + 15, 3)       # fixed 7-minute window once confirmed
         res.append({"time": (d["start"] + timedelta(minutes=c["i"])).strftime("%Y-%m-%d %H:%M"),
                     "dV": round(v1 - v0, 1), "V_before": round(v0), "V_after": round(v1),
                     "hold_dV": round(hold - v0, 1) if hold is not None else None,
