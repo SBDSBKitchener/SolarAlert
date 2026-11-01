@@ -13,9 +13,9 @@ now = datetime.now(timezone.utc)
 day = now.strftime("%Y-%m-%d")
 
 
-def gin(code):
+def gin(code, state="Best%20available"):
     return ("https://imag-data.bgs.ac.uk/GIN_V1/GINServices?Request=GetData&format=iaga2002&testObsys=0"
-            f"&observatoryIagaCode={code}&samplesPerDay=minute&publicationState=Best%20available"
+            f"&observatoryIagaCode={code}&samplesPerDay=minute&publicationState={state}"
             f"&dataStartDate={day}&dataDuration=1")
 
 
@@ -39,7 +39,8 @@ for region, codes in {
         "Australasia": ["CNB", "CTA", "EYR", "API"],
         "South America": ["VSS", "TRW", "PIL", "HUA"]}.items():
     for c in codes:
-        SOURCES[f"{region} | INTERMAGNET via BGS GIN ({c})"] = gin(c)
+        SOURCES[f"{region} | INTERMAGNET via BGS GIN best-available ({c})"] = gin(c)
+        SOURCES[f"{region} | INTERMAGNET via BGS GIN reported ({c})"] = gin(c, "Reported")
 
 TS = re.compile(r"(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}:\d{2})")
 
@@ -54,11 +55,15 @@ def probe(name, url):
     except Exception as e:
         out.update(status=None, error=f"{type(e).__name__}: {e}"[:300])
         return out
-    stamps = TS.findall(body)
-    if stamps:
-        d, t = stamps[-1]
-        newest = datetime.strptime(f"{d} {t}", "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+    # IAGA-2002 rows: "date time doy V1 V2 V3 V4"; 99999 / 88888 mark missing values. Newest row with real data:
+    rows = [l.split() for l in body.splitlines() if TS.match(l)]
+    valid = [r for r in rows if any(x.replace(".", "").lstrip("-").isdigit() and abs(float(x)) < 88888 for x in r[3:])]
+    out.update(rows=len(rows), rows_with_data=len(valid))
+    if valid:
+        newest = datetime.strptime(f"{valid[-1][0]} {valid[-1][1][:8]}", "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
         out.update(newest=newest.isoformat(), age_minutes=round((now - newest).total_seconds() / 60, 1))
+    elif rows:
+        out["note"] = "file has rows but every value is missing (99999)"
     out["head"] = body[:240].replace("\n", " | ")
     out["tail"] = body[-160:].replace("\n", " | ")
     return out
@@ -67,4 +72,4 @@ def probe(name, url):
 results = {n: probe(n, u) for n, u in SOURCES.items()}
 json.dump({"generated": now.isoformat(), "results": results}, open("probe.json", "w"), indent=1)
 for n, r in results.items():
-    print(f"{n:62s} status={r.get('status')} age_min={r.get('age_minutes')} bytes={r.get('bytes')} {r.get('error','')}")
+    print(f"{n:70s} rows_with_data={r.get('rows_with_data')} status={r.get('status')} age_min={r.get('age_minutes')} bytes={r.get('bytes')} {r.get('error','')}")
