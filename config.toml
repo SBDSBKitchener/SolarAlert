@@ -235,7 +235,7 @@ cooldown_minutes = 60
 # ---------------------------------------------------------------- SHOCK ARRIVAL (L1)
 # Detects the arrival of an interplanetary shock at the L1 monitor 30-60 minutes before it reaches Earth.
 # A candidate is a lasting jump of speed (6-minute median from 2 minutes after versus ending 2 minutes before;
-# the speed must stay raised: hold_jump >= hold_fraction x speed_jump over the following minutes), with the plasma
+# the median speed over the 7 minutes after that must stay raised: hold_jump >= hold_fraction x speed_jump), with the plasma
 # compressed (density ratio >= min_density_ratio) and at least min_met of: density ratio, field (Bt) ratio and
 # temperature ratio at or above the level's values. speed_jump = 0 turns a level off. Detection lags the shock by
 # roughly 10 minutes because the jump must be confirmed. Spacecraft changes inside the window disqualify a candidate.
@@ -246,8 +246,9 @@ cooldown_minutes = 60
 #   17:08 UT (OMNI time) 1 Jan 2025 storm shock: speed +50, density x2.35, field x0.93 (the field was already high), temperature
 #     x1.33 -> WARNING thresholds set just below these (speed +45, any two of density x1.8, field x1.3, temperature x1.25).
 #   March 1989 (Quebec blackout): OMNI holds no plasma or field data for 12-14 March 1989, so it could not be used.
-# Run over all of 2024 and 2025 these thresholds give roughly 4 ALERT + 22 WARNING (2024) and 2 ALERT + 3 WARNING
-# (2025) detections; the OMNI files are missing about a third of the minutes, so real counts are somewhat higher.
+# Run over all of 2024 and 2025 these thresholds give 3 ALERT + 21 WARNING (2024) and 2 ALERT + 3 WARNING (2025)
+# detections; the OMNI files are missing about a third of the minutes, so real counts are somewhat higher. Replaying
+# the production detector on the OMNI minutes alerts about 10 minutes after each step and stays stable afterwards.
 
 [solar_wind.shock]
 enabled = true
