@@ -1093,7 +1093,7 @@ def gic_geoelectric(cfg, fetch, now):
         vals.sort(reverse=True)
         # the value of the min_points-th strongest grid point, so one odd grid point cannot trigger an alert
         v, lat, lon = vals[c["min_points"] - 1]
-        samples.append((t, v, f"{lat:.1f}N {lon:.1f}E"))
+        samples.append((t, v, f"{abs(lat):.1f}°{'N' if lat >= 0 else 'S'} {abs(lon):.1f}°{'E' if lon >= 0 else 'W'}"))
         ok.append(t)
     if ok:
         store.set_kv("gic_efield_last", iso(max(ok)))
@@ -1104,8 +1104,8 @@ def gic_geoelectric(cfg, fetch, now):
     still = max(samples)[1] >= c["warning_threshold"]
     a = gic_episode(group, lambda v, w: f"Strong geoelectric field in the US and Canada: {v:.0f} mV/km near {w}",
                     "mV/km", samples, c["warning_threshold"], c["alert_threshold"], g["cooldown_minutes"], g["link"],
-                    f"NOAA SWPC 1D US-Canada geoelectric field model; value is the strength of the "
-                    f"{c['min_points']}-th strongest grid point.")
+                    f"NOAA SWPC 1D US-Canada geoelectric field model. The value shown is the strength reached or exceeded at "
+                    f"{c['min_points']} grid points, so one odd grid point cannot trigger an alert.")
     return ([a] if a else []), {group: still}
 
 
