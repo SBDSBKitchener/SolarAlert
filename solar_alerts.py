@@ -1014,7 +1014,7 @@ def check_shock(cfg, fetch, now):
     alerts, notes = [], []
     for i, dv in found:
         pre, post = _wmed(V, i - 7, i - 1), _wmed(V, i + 2, i + 8)
-        hold = _wmed(V, i + 8, i + 26, sc["hold_min_readings"])
+        hold = _wmed(V, i + 8, i + 15, sc["hold_min_readings"])
         m = {"speed_jump": dv, "hold_jump": None if hold is None else hold - pre,
              "density_ratio": _ratio((_wmed(N, i - 7, i - 1), _wmed(N, i + 2, i + 8))),
              "field_ratio": _ratio((_wmed(B, i - 7, i - 1), _wmed(B, i + 2, i + 8))),

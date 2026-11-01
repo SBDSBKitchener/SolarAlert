@@ -18,12 +18,12 @@ class FakeFetch:
 
 text = []
 data = {y: load(y) for y in (2024, 2025)}
-for name, y, when in EVENTS[:1]+EVENTS[3:4]:
+for name, y, when in EVENTS:
     d = data[y]
     t0 = datetime.strptime(when, "%Y-%m-%d %H:%M").replace(tzinfo=timezone.utc)
     i0 = int((t0 - d["start"]).total_seconds() // 60)
     text.append(f"\n== {name} (OMNI step at {when})")
-    for lag in (14, 15, 16, 18, 20, 25):
+    for lag in (8, 10, 12, 15, 20, 40):
         now = t0 + timedelta(minutes=lag)
         plasma, mag = [], []
         for k in range(i0 + lag - 150, i0 + lag + 1):

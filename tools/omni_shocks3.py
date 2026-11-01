@@ -8,6 +8,8 @@ def level(c):
     def ok(dv, k, n, b, t, hold):
         if c["dV"] < dv or c["hold_dV"] is None or c["hold_dV"] < hold * c["dV"]:
             return False
+        if c["N_ratio"] is None or c["N_ratio"] < 1.2:
+            return False                                   # same as production: the plasma must be compressed
         return sum([(c["N_ratio"] or 0) >= n, (c["B_ratio"] or 0) >= b, (c["T_ratio"] or 0) >= t]) >= k
     return "ALERT" if ok(*RULES["ALERT"]) else "WARNING" if ok(*RULES["WARNING"]) else None
 
