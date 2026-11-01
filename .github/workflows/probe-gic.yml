@@ -14,12 +14,14 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: python tools/probe_gic.py
+      - run: |
+          python tools/probe_gic.py
+          python tools/probe_gic2.py
       - name: Save result to the probe branch
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          mkdir publish && cp probe.json publish/
+          mkdir publish && cp probe.json probe2.json publish/ 2>/dev/null || cp probe.json publish/
           cd publish
           git init -q -b probe
           git config user.name "github-actions[bot]"
