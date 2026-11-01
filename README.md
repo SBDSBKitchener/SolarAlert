@@ -1,5 +1,7 @@
 # Solar & Geomagnetic Alerts RSS
 
+> **New to space weather?** Read the [plain-language guide](GUIDE.md): what each alert means, why it matters, an example of each message, and a table of every threshold.
+
 Polls NOAA SWPC and HEK, applies thresholds from `config.toml`, and writes a static `feed.xml`
 that anyone can subscribe to. Python 3.11+, no third-party packages.
 
