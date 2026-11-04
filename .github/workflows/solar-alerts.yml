@@ -107,7 +107,17 @@ jobs:
           git add -A
           git commit -q -m "State $(date -u +%Y-%m-%dT%H:%M:%SZ)"
           # Single orphan commit, force-pushed: the branch never accumulates history.
-          git push -q -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" state
+          # GitHub occasionally rejects or drops a push for a moment (it caused four failed runs on
+          # 4 Nov 2026 that cleared on their own), so retry a few times before giving up.
+          for attempt in 1 2 3 4; do
+            if git push -q -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" state; then
+              exit 0
+            fi
+            echo "::warning::State push failed (attempt $attempt of 4)"
+            sleep $(( attempt * 10 ))
+          done
+          echo "::error::State push failed 4 times"
+          exit 1
 
       # GitHub disables scheduled workflows in public repos after 60 days without
       # repository activity. Best effort: add an empty commit to main every ~45 days.
