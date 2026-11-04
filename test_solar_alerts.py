@@ -1020,21 +1020,48 @@ class GIC(Base):
         self.prepend({**files, self.EF: html})
 
     def test_geoelectric_levels(self):
-        self.efield([2], [1100, 1100, 1100])
+        self.efield([3, 2, 1, 0], [1100, 1100, 1100])
         new = self.cycle()
         self.assertEqual((new[0].level, new[0].title[:9]), ("warning", "WARNING: "))
         self.assertIn("mV/km", new[0].title)
         self.assertIn("US and Canada", new[0].title)
+        self.assertIn("held for at least 3 minutes", new[0].description)
 
     def test_geoelectric_alert_and_single_grid_point_ignored(self):
-        self.efield([2], [2500, 1100, 900])                              # only the 3rd strongest counts: 900
+        self.efield([3, 2, 1, 0], [2500, 1100, 900])                     # only the 3rd strongest counts: 900
         self.assertEqual(self.cycle(), [])
-        self.efield([1], [1700, 1600, 1600])
-        new = self.cycle(NOW + timedelta(minutes=2))
+        self.efield([-3, -4, -5, -6], [1700, 1600, 1600])
+        new = self.cycle(NOW + timedelta(minutes=7))
         self.assertEqual(new[0].level, "alert")
 
+    def test_geoelectric_broken_run_ignored(self):
+        self.efield([3, 2, 1, 0], [1100, 1100, 1100])
+        mid = self.f.data[self.EF + f"{NOW - timedelta(minutes=2):%Y%m%dT%H%M%S}-15-Efield-US-Canada.json"]
+        for f in mid["features"][:3]:
+            f["properties"]["Ex"] = 10.0                                 # one weak minute breaks the run
+        self.assertEqual(self.cycle(), [])
+
+    def test_geoelectric_persistence_across_cycles(self):
+        self.efield([1], [1100, 1100, 1100])
+        self.assertEqual(self.cycle(), [])                               # one minute so far
+        self.efield([0], [1100, 1100, 1100])
+        self.assertEqual(self.cycle(NOW), [])                            # two minutes
+        self.efield([-1], [1100, 1100, 1100])
+        self.assertEqual(len(self.cycle(NOW + timedelta(minutes=1))), 1)  # third minute in a row: now it has lasted
+
+    def test_geoelectric_needs_kp(self):
+        self.efield([3, 2, 1, 0], [1100, 1100, 1100])
+        self.prepend({self.cfg["gic"]["geoelectric"]["kp_url"]: [{"time_tag": ts(60, "T"), "Kp": 2.0}]})
+        self.assertEqual(self.cycle(), [])
+        self.assertIn("below", sa._NOTES["gic"]["geoelectric"]["suppressed"])
+
+    def test_geoelectric_passes_when_kp_high_or_unknown(self):
+        self.efield([3, 2, 1, 0], [1100, 1100, 1100])
+        self.prepend({self.cfg["gic"]["geoelectric"]["kp_url"]: [{"time_tag": ts(60, "T"), "Kp": 5.0}]})
+        self.assertEqual(len(self.cycle()), 1)
+
     def test_geoelectric_only_fetches_new_files_and_is_not_repeated(self):
-        self.efield([3, 2, 1], [1100, 1100, 1100])
+        self.efield([4, 3, 2, 1], [1100, 1100, 1100])
         self.assertEqual(len(self.cycle()), 1)
         self.assertEqual(self.cycle(), [])                               # nothing new since last time
         self.assertEqual(sa._NOTES["gic"]["geoelectric"]["files_new"], 0)
@@ -1045,7 +1072,7 @@ class GIC(Base):
         self.assertEqual(sa._NOTES["gic"]["geoelectric"]["files_used"], 6)
 
     def test_geoelectric_station_distance_filter(self):
-        self.efield([2], [1100, 1100, 1100])
+        self.efield([3, 2, 1, 0], [1100, 1100, 1100])
         self.cfg["gic"]["geoelectric"]["max_nearest_station_km"] = 50
         self.assertEqual(self.cycle(), [])                               # all test points are 100 km away
 

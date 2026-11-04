@@ -312,7 +312,7 @@ could be aimed our way.
 **Two ways the system watches.**
 
 - **How fast the field is changing, around the world.** Ground magnetic observatories report the field every minute. The alert measures how many nanotesla the field changes per minute (nT/min), in five regions: North America, Europe, Asia, Australasia and South America. Quiet days are usually a few nT/min or less. WARNING at 400 nT/min, ALERT at 800 nT/min. Each region is judged separately, so an alert names where the change was measured.
-- **The electric field in the ground, for the United States and Canada.** NOAA publishes a model of the ground electric field each minute, in millivolts per kilometre (mV/km). WARNING at 1,000 mV/km, ALERT at 1,500 mV/km. At least three grid points must reach the value, so one odd point cannot trigger it.
+- **The electric field in the ground, for the United States and Canada.** NOAA publishes a model of the ground electric field each minute, in millivolts per kilometre (mV/km). WARNING at 1,000 mV/km, ALERT at 1,500 mV/km. At least three grid points must reach the value, so one odd point cannot trigger it. The value must also hold for three minutes in a row, and the alert is only issued when geomagnetic activity has recently reached Kp 4 or higher, which keeps brief model glitches in quiet conditions from raising it.
 
 When a WARNING is later raised to an ALERT during the same episode, you get one update message. After an alert, the same region is not announced again for an hour.
 
@@ -378,4 +378,4 @@ These are the values in use as of 1 November 2026. All can be changed in the sys
 | Dangerous sunspot: high X-flare odds | NOAA X-class flare probability of 10% or more | WARNING | 24 hours | The highest level among the conditions met is used. Later new conditions trigger an update message. |
 | Dangerous sunspot: already flaring | At least 1 M or X class flare already from the region | WATCH | 24 hours | Absence of past flares does not disqualify a region. |
 | Power grid: field change rate | 400 nT/min or more; 800 nT/min or more | WARNING; ALERT | 1 hour | Smoothed over 5 minutes, per region: North America (BOU, FRD), Europe (NUR, NGK, FUR, HRN, BEL), Asia (KAK, MMB, KNY), Australasia (CNB, CTA, KDU, EYR), South America (VSS). A station that has not reported for over an hour no longer keeps an alert open. |
-| Power grid: ground electric field (US and Canada) | 1,000 mV/km or more; 1,500 mV/km or more | WARNING; ALERT | 1 hour | Value must be reached at 3 or more grid points. NOAA 1-D model. |
+| Power grid: ground electric field (US and Canada) | 1,000 mV/km or more; 1,500 mV/km or more | WARNING; ALERT | 1 hour | Value must be reached at 3 or more grid points, hold for 3 minutes, and Kp must have been 4 or higher in the last 6 hours. NOAA 1-D model. |

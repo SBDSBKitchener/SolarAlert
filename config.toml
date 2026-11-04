@@ -413,5 +413,9 @@ lookback_minutes = 60
 max_files_per_run = 6
 min_points = 3
 max_nearest_station_km = 0
+min_minutes = 3                       # the value must hold for this many minutes
+min_kp = 4                            # only alert when Kp has been at least this in the last kp_lookback_hours (0 = off)
+kp_url = "https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json"
+kp_lookback_hours = 6
 warning_threshold = 1000.0            # mV/km
 alert_threshold = 1500.0              # mV/km

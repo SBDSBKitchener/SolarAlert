@@ -247,7 +247,8 @@ def _schema():
         ("warning_threshold", "num"), ("alert_threshold", "num"), ("stations", "stations"))]
     s += [(f"gic.geoelectric.{k}", kind) for k, kind in (
         ("enabled", "bool"), ("listing_url", "str"), ("lookback_minutes", "posint"), ("max_files_per_run", "posint"),
-        ("min_points", "posint"), ("max_nearest_station_km", "nonneg"),
+        ("min_points", "posint"), ("max_nearest_station_km", "nonneg"), ("min_minutes", "posint"),
+        ("min_kp", "nonneg"), ("kp_url", "str"), ("kp_lookback_hours", "posint"),
         ("warning_threshold", "num"), ("alert_threshold", "num"))]
     for r in ("speed", "density", "bt", "bz"):
         s += [(f"solar_wind.{r}.field", "str"), (f"solar_wind.{r}.smoothing_window", "posint"),
@@ -1297,6 +1298,38 @@ def gic_dbdt(cfg, fetch, now):
     return alerts, conds
 
 
+def sustained(samples, minutes, max_gap=timedelta(seconds=150)):
+    """Keep only values that lasted: each result (t, v, where) has v = the lowest value over the `minutes` consecutive
+    one-minute samples ending at t (no gap longer than `max_gap`). Samples without enough unbroken history are dropped."""
+    samples = sorted(samples)
+    if minutes <= 1:
+        return samples
+    out = []
+    for i, (t, v, w) in enumerate(samples):
+        low, j = (v, w), i
+        while j > 0 and samples[j][0] - samples[j - 1][0] <= max_gap:
+            j -= 1
+            low = min(low, (samples[j][1], samples[j][2]))
+            if t - samples[j][0] >= timedelta(minutes=minutes - 1):
+                out.append((t, low[0], low[1]))
+                break
+    return out
+
+
+def recent_kp(c, fetch, now):
+    """Highest Kp in the last `kp_lookback_hours`, or None when it cannot be determined (then the gate is skipped)."""
+    try:
+        best = None
+        for r in table_rows(fetch.json(c["kp_url"])):
+            t, kp = parse_time(r.get("time_tag")), to_float(first_present(r, "Kp", "kp_index", "kp"))
+            if t and kp is not None and now - timedelta(hours=c["kp_lookback_hours"]) <= t <= now + timedelta(minutes=5):
+                best = kp if best is None else max(best, kp)
+        return best
+    except Exception as e:
+        log.warning("GIC geoelectric Kp lookup: %s", e)
+        return None
+
+
 def gic_geoelectric(cfg, fetch, now):
     g, c = cfg["gic"], cfg["gic"]["geoelectric"]
     store = _STATE["store"]
@@ -1312,8 +1345,8 @@ def gic_geoelectric(cfg, fetch, now):
         now - timedelta(minutes=c["lookback_minutes"])
     todo = sorted(t for t in files if floor <= t <= now + timedelta(minutes=5))
     n = c["max_files_per_run"]
-    if len(todo) > n:                                        # evenly spaced, always including the newest
-        todo = sorted({todo[round(i * (len(todo) - 1) / (n - 1))] for i in range(n)}) if n > 1 else todo[-1:]
+    if len(todo) > n:                                        # newest files only: persistence needs consecutive minutes
+        todo = todo[-n:]
     notes = {"files_listed": len(files), "files_new": len(todo), "newest_listed": iso(max(files)) if files else None}
     _NOTES.setdefault("gic", {})["geoelectric"] = notes
     if not todo:
@@ -1346,17 +1379,37 @@ def gic_geoelectric(cfg, fetch, now):
         ok.append(t)
     if ok:
         store.set_kv("gic_efield_last", iso(max(ok)))
+    # keep a short history so persistence works across runs
+    hist = []
+    try:
+        for t, v, w in json.loads(store.get_kv("gic_efield_samples") or "[]"):
+            hist.append((parse_time(t), v, w))
+    except Exception:
+        hist = []
+    keep = now - timedelta(minutes=c["lookback_minutes"])
+    allsamples = sorted({(t, v, w) for t, v, w in hist + samples if t and t >= keep})
+    store.set_kv("gic_efield_samples", json.dumps([[iso(t), v, w] for t, v, w in allsamples]))
     notes.update(files_used=len(ok), strongest=round(max((s[1] for s in samples), default=0), 1))
+    lasting = sustained(allsamples, c["min_minutes"])
+    notes["strongest_sustained"] = round(max((s[1] for s in lasting), default=0), 1)
+    group = "gic_geoelectric_na"
     if not samples:
         return [], {}
-    group = "gic_geoelectric_na"
-    still = max(samples)[1] >= c["warning_threshold"]
+    kp = recent_kp(c, fetch, now) if c["min_kp"] > 0 else None
+    notes["kp"] = kp
+    if kp is not None and kp < c["min_kp"]:
+        notes["suppressed"] = f"Kp {kp:g} is below {c['min_kp']:g}"
+        return [], {group: False}
+    if not lasting:
+        return [], {group: False}
+    still = max(lasting, key=lambda x: x[1])[1] >= c["warning_threshold"]
     a = gic_episode(group, lambda v, w: f"Strong electric field in the ground across the US and Canada: {v:.0f} mV/km near {w}; "
                                           f"risk of currents in power grids",
-                    "mV/km", samples, c["warning_threshold"], c["alert_threshold"], g["cooldown_minutes"], g["link"],
+                    "mV/km", lasting, c["warning_threshold"], c["alert_threshold"], g["cooldown_minutes"], g["link"],
                     f"This is the electric field in the ground, in millivolts per kilometre (mV/km), from NOAA's geoelectric field "
                     f"model for the US and Canada; values this high are far above normal. The value shown was reached or "
-                    f"exceeded at {c['min_points']} grid points, so one odd point cannot trigger an alert.")
+                    f"exceeded at {c['min_points']} grid points and held for at least {c['min_minutes']} minutes"
+                    + (f", while geomagnetic activity was at Kp {c['min_kp']:g} or higher" if c["min_kp"] > 0 else "") + ".")
     return ([a] if a else []), {group: still}
 
 
