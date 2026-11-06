@@ -280,7 +280,7 @@ points south; watch for follow-up storm alerts.
 
 - **Complex magnetic layout** (the "beta-gamma-delta" class, the most tangled type): WATCH.
 - **Rapid growth**: the group's area rising by 100 millionths of the Sun's visible half or more, or 10 or more new sunspots, per day, and only for large, complex group shapes (McIntosh classes Fkc, Ekc, Eki or Fki): WATCH.
-- **High X-flare odds**: NOAA gives it a 10% or better chance of an X-class flare in the next 24 hours: WARNING.
+- **High X-flare odds**: NOAA gives it a 20% or better chance of an X-class flare in the next 24 hours: WARNING.
 - **Already flaring**: it has already produced at least one M or X class flare: WATCH.
 
 The alert takes the highest level among the conditions met. If a flagged group later meets a new condition, you get one update message, and the level may go up. After an alert, the same region is not announced again for 24 hours.
@@ -290,13 +290,13 @@ The alert takes the highest level among the conditions met. If a flagged group l
 **Example message**
 
 ```text
-Title: WARNING: Potentially dangerous sunspot AR4551 faces Earth, S15E07 (complex magnetic layout, beta-gamma-delta; rapid growth; 10% chance of an X-class flare)
+Title: WARNING: Potentially dangerous sunspot AR4551 faces Earth, S15E07 (complex magnetic layout, beta-gamma-delta; rapid growth; 25% chance of an X-class flare)
 Category: Sunspot
 
 Level: WARNING. Sunspot region AR4551 (AR means active region; this is NOAA's number for it) is facing
 Earth, at S15E07 on the Sun, and has: a complex magnetic layout, class BGD (beta-gamma-delta), the kind
 most likely to produce major flares; rapid growth (14 more sunspots in 1 day; it is a large, complex
-type of sunspot group, class Eki); NOAA gives it a 10% chance of producing an X-class (the strongest)
+type of sunspot group, class Eki); NOAA gives it a 25% chance of producing an X-class (the strongest)
 flare in the next 24 hours. Shape class Eki; covers 500 millionths of the Sun's visible half; 23 spots.
 Based on NOAA's region summary for 2026-10-14 UTC (updated daily, so up to a day old). Sunspot regions
 are where solar flares and eruptions come from; because this one faces Earth, anything it throws out
@@ -375,7 +375,7 @@ These are the values in use as of 1 November 2026. All can be changed in the sys
 | Solar wind shock, ALERT | Speed jump of at least 120 km/s, plus two of: density ×1.5, field ×1.5, temperature ×2 | ALERT | None | Same confirmation rules. In the 2024–2025 calibration data this level was reached 3 times in 2024 and 2 in 2025. |
 | Dangerous sunspot: complex magnetic layout | Region of class BGD, within 60° of disc centre | WATCH | 24 hours | Uses NOAA's daily summary, up to a day old. |
 | Dangerous sunspot: rapid growth | Area up 100 millionths or more, or 10 or more new spots, per day, for classes Fkc, Ekc, Eki or Fki | WATCH | 24 hours | Compared over a window of up to 2 days. |
-| Dangerous sunspot: high X-flare odds | NOAA X-class flare probability of 10% or more | WARNING | 24 hours | The highest level among the conditions met is used. Later new conditions trigger an update message. |
+| Dangerous sunspot: high X-flare odds | NOAA X-class flare probability of 20% or more | WARNING | 24 hours | The highest level among the conditions met is used. Later new conditions trigger an update message. |
 | Dangerous sunspot: already flaring | At least 1 M or X class flare already from the region | WATCH | 24 hours | Absence of past flares does not disqualify a region. |
 | Power grid: field change rate | 400 nT/min or more; 800 nT/min or more | WARNING; ALERT | 1 hour | Smoothed over 5 minutes; a second station in the region must show 100 nT/min or more within 10 minutes; Kp must have been 4 or higher in the last 6 hours. Per region: North America (BOU, FRD), Europe (NUR, NGK, FUR, HRN, BEL), Asia (KAK, MMB, KNY), Australasia (CNB, CTA, KDU, EYR), South America (VSS). A station that has not reported for over an hour no longer keeps an alert open. |
 | Power grid: ground electric field (US and Canada) | 1,000 mV/km or more; 1,500 mV/km or more | WARNING; ALERT | 1 hour | Value must be reached at 3 or more grid points, hold for 3 minutes, and Kp must have been 4 or higher in the last 6 hours. NOAA 1-D model. |
