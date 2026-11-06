@@ -244,7 +244,9 @@ def _schema():
     s += [(f"gic.dbdt.{k}", kind) for k, kind in (
         ("enabled", "bool"), ("gin_url", "str"), ("usgs_url", "str"), ("lookback_minutes", "posint"),
         ("smoothing_window", "posint"), ("max_plausible", "nonneg"), ("max_station_age_minutes", "posint"),
-        ("warning_threshold", "num"), ("alert_threshold", "num"), ("stations", "stations"))]
+        ("warning_threshold", "num"), ("alert_threshold", "num"), ("stations", "stations"),
+        ("min_kp", "nonneg"), ("kp_url", "str"), ("kp_lookback_hours", "posint"),
+        ("corroboration_threshold", "nonneg"), ("corroboration_minutes", "posint"))]
     s += [(f"gic.geoelectric.{k}", kind) for k, kind in (
         ("enabled", "bool"), ("listing_url", "str"), ("lookback_minutes", "posint"), ("max_files_per_run", "posint"),
         ("min_points", "posint"), ("max_nearest_station_km", "nonneg"), ("min_minutes", "posint"),
@@ -1280,11 +1282,27 @@ def gic_dbdt(cfg, fetch, now):
             by_region.setdefault(region, []).append((code, series, newest))
     _NOTES.setdefault("gic", {})["dbdt_stations"] = notes
     alerts, conds = [], {}
+    kp = recent_kp(c, fetch, now) if c["min_kp"] > 0 else None
+    _NOTES["gic"]["dbdt_kp"] = kp
+    if kp is not None and kp < c["min_kp"]:                  # real dB/dt extremes only happen in storms
+        _NOTES["gic"]["dbdt_suppressed"] = f"Kp {kp:g} is below {c['min_kp']:g}"
+        return [], {f"gic_dbdt_{_slug(r)}": False for r in by_region}
+    span = timedelta(minutes=c["corroboration_minutes"])
+
+    def backed(code, t, stations):
+        """True when another station in the region also shows a clear disturbance close in time (a faulty
+        instrument is not echoed by its neighbours). Skipped when fewer than two stations in the region report."""
+        if len(stations) < 2 or c["corroboration_threshold"] <= 0:
+            return True
+        return any(v >= c["corroboration_threshold"] and abs((t2 - t).total_seconds()) <= span.total_seconds()
+                   for oc, ser, _ in stations if oc != code for t2, v in ser)
+
     for region, stations in by_region.items():
-        samples = [(t, v, code) for code, series, _ in stations for t, v in series]
+        samples = [(t, v, code) for code, series, _ in stations for t, v in series
+                   if v < c["warning_threshold"] or backed(code, t, stations)]
         # the episode is still open while a recently reporting station's latest value is at or above the warning level
         still = any(series[-1][1] >= c["warning_threshold"] and (now - newest).total_seconds() / 60 <= c["max_station_age_minutes"]
-                    for _, series, newest in stations)
+                    and backed(code, series[-1][0], stations) for code, series, newest in stations)
         group = f"gic_dbdt_{_slug(region)}"
         conds[group] = still
         a = gic_episode(group, lambda v, w, region=region: f"Very rapid magnetic field change in {region}: "
@@ -1292,7 +1310,9 @@ def gic_dbdt(cfg, fetch, now):
                                                           f"risk of currents in power grids",
                         "nT/min", samples, c["warning_threshold"], c["alert_threshold"], g["cooldown_minutes"], g["link"],
                         f"This is how fast the horizontal magnetic field changed, in nanotesla per minute (nT/min), "
-                        f"measured by ground observatories in {region}; on quiet days it is usually only a few nT/min or less.")
+                        f"measured by ground observatories in {region}; on quiet days it is usually only a few nT/min or less."
+                        + (" Another observatory in the region showed a disturbance at the same time, which rules out a "
+                           "faulty instrument." if len(stations) > 1 and c["corroboration_threshold"] > 0 else ""))
         if a:
             alerts.append(a)
     return alerts, conds
@@ -1326,7 +1346,7 @@ def recent_kp(c, fetch, now):
                 best = kp if best is None else max(best, kp)
         return best
     except Exception as e:
-        log.warning("GIC geoelectric Kp lookup: %s", e)
+        log.warning("GIC Kp lookup: %s", e)
         return None
 
 

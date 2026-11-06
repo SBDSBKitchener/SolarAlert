@@ -947,6 +947,22 @@ class GIC(Base):
         self.put("NUR", self.iaga("NUR", self.quiet()))
         self.assertEqual(self.cycle(), [])
 
+    def test_lone_station_glitch_is_ignored_but_confirmed_event_alerts(self):
+        self.put("NUR", self.iaga("NUR", self.quiet() + [450.0] * 6))
+        self.put("NGK", self.iaga("NGK", self.quiet()))
+        self.assertEqual(self.cycle(), [])                              # no second station agrees: faulty instrument
+        self.put("NGK", self.iaga("NGK", self.quiet() + [150.0] * 6))
+        new = self.cycle()
+        self.assertEqual(len(new), 1, self.titles(new))
+        self.assertIn("faulty instrument", new[0].description)
+
+    def test_dbdt_needs_kp(self):
+        self.put("NUR", self.iaga("NUR", self.quiet() + [450.0] * 6))
+        self.put("NGK", self.iaga("NGK", self.quiet() + [150.0] * 6))
+        self.prepend({self.cfg["gic"]["dbdt"]["kp_url"]: [{"time_tag": ts(60, "T"), "Kp": 2.0}]})
+        self.assertEqual(self.cycle(), [])
+        self.assertIn("below", sa._NOTES["gic"]["dbdt_suppressed"])
+
     def test_sustained_excursion_is_a_warning_for_its_region(self):
         self.put("NUR", self.iaga("NUR", self.quiet() + [450.0] * 6))
         self.put("KAK", self.iaga("KAK", self.quiet()))

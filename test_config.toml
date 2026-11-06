@@ -320,6 +320,11 @@ max_plausible = 5000
 max_station_age_minutes = 60
 warning_threshold = 400.0             # nT/min
 alert_threshold = 800.0               # nT/min
+min_kp = 4                            # only alert when Kp has been at least this in the last kp_lookback_hours (0 = off)
+kp_url = "https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json"
+kp_lookback_hours = 6
+corroboration_threshold = 100.0       # nT/min: a second station in the region must show at least this (0 = off)
+corroboration_minutes = 10            # ... within this many minutes of the reading
 
 [[gic.dbdt.stations]]
 code = "BOU"
