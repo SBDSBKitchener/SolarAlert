@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+<channel>
+<title>Solar &amp; Geomagnetic Alerts</title>
+<link>https://SBDSBKitchener.github.io/SolarAlert/</link>
+<description>Significant solar flares, solar eruptions, geomagnetic storms, radiation storms, solar wind shocks and power-grid risk. WATCH = worth keeping an eye on; WARNING = a significant event is likely or under way; ALERT = an extreme event. Times are UTC.</description>
+<language>en</language>
+<ttl>5</ttl>
+<atom:link href="https://SBDSBKitchener.github.io/SolarAlert/feed.xml" rel="self" type="application/rss+xml"/>
+<lastBuildDate>Sat, 07 Nov 2026 17:30:22 +0000</lastBuildDate>
+<item>
+<title>WATCH: Sunspot AR4566 update, now also: has already produced strong flares</title>
+<link>https://www.swpc.noaa.gov/products/solar-region-summary</link>
+<guid isPermaLink="false">sunspot:4566:2026-11-07T00:00:00Z+flares</guid>
+<pubDate>Sat, 07 Nov 2026 00:00:00 +0000</pubDate>
+<category>Sunspot</category>
+<category>WATCH</category>
+<description>Sunspot region AR4566 (at S06E06 on the Sun, facing Earth) was already flagged as potentially dangerous and now also has: it has already produced 1 medium or strong (M or X class) flare. Everything it has now: a complex magnetic layout, class BGD (beta-gamma-delta), the kind most likely to produce major flares; it has already produced 1 medium or strong (M or X class) flare. Level: WATCH. Based on NOAA's region summary for 2026-11-07 UTC (updated daily, so up to a day old). Sunspot regions are where solar flares and eruptions come from; because this one faces Earth, anything it throws out could be aimed our way.</description>
+</item>
+<item>
+<title>WATCH: Potentially dangerous sunspot AR4566 faces Earth, S06E06 (complex magnetic layout, beta-gamma-delta)</title>
+<link>https://www.swpc.noaa.gov/products/solar-region-summary</link>
+<guid isPermaLink="false">sunspot:4566:2026-11-07T00:00:00Z</guid>
+<pubDate>Sat, 07 Nov 2026 00:00:00 +0000</pubDate>
+<category>Sunspot</category>
+<category>WATCH</category>
+<description>Level: WATCH. Sunspot region AR4566 (AR means active region; this is NOAA's number for it) is facing Earth, at S06E06 on the Sun, and has: a complex magnetic layout, class BGD (beta-gamma-delta), the kind most likely to produce major flares. Shape class Dkc; covers 350 millionths of the Sun's visible half; 28 spots. Based on NOAA's region summary for 2026-11-07 UTC (updated daily, so up to a day old). Sunspot regions are where solar flares and eruptions come from; because this one faces Earth, anything it throws out could be aimed our way.</description>
+</item>
+<item>
+<title>ALERT: Very rapid magnetic field change in Europe: 1038 nT/min measured at Nurmijarvi, Finland (NUR); risk of currents in power grids</title>
+<link>https://www.spaceweather.gov/products/geoelectric-field-models-1-minute</link>
+<guid isPermaLink="false">gic_dbdt_europe:2026-11-06T08:45:00Z</guid>
+<pubDate>Fri, 06 Nov 2026 08:45:00 +0000</pubDate>
+<category>Geomagnetically induced currents</category>
+<category>ALERT</category>
+<description>Very rapid magnetic field change in Europe: 1038 nT/min measured at Nurmijarvi, Finland (NUR); risk of currents in power grids. Level: ALERT (the ALERT threshold is 800 nT/min). The peak was 1038 nT/min at 2026-11-06 08:45 UTC; it began at 08:45 UTC. This is how fast the horizontal magnetic field changed, in nanotesla per minute (nT/min), measured by ground observatories in Europe; on quiet days it is usually only a few nT/min or less. Why it matters: fast changes in Earth's magnetic field drive electric currents through the ground and into long conductors such as power lines, pipelines and railway circuits (geomagnetically induced currents). Strong ones can trip protection equipment, cause voltage problems or overheat transformers; the Quebec blackout of March 1989 was caused this way. Whether a particular grid is affected depends on the grid and the local rock beneath it.</description>
+</item>
+<item>
+<title>WARNING: Sunspot AR4566 update, now also: 10% chance of an X-class flare</title>
+<link>https://www.swpc.noaa.gov/products/solar-region-summary</link>
+<guid isPermaLink="false">sunspot:4566:2026-11-06T00:00:00Z+xprob</guid>
+<pubDate>Fri, 06 Nov 2026 00:00:00 +0000</pubDate>
+<category>Sunspot</category>
+<category>WARNING</category>
+<description>Sunspot region AR4566 (at S06E19 on the Sun, facing Earth) was already flagged as potentially dangerous and now also has: NOAA gives it a 10% chance of producing an X-class (the strongest) flare in the next 24 hours. Everything it has now: a complex magnetic layout, class BGD (beta-gamma-delta), the kind most likely to produce major flares; NOAA gives it a 10% chance of producing an X-class (the strongest) flare in the next 24 hours. Level raised from WATCH to WARNING. Based on NOAA's region summary for 2026-11-06 UTC (updated daily, so up to a day old). Sunspot regions are where solar flares and eruptions come from; because this one faces Earth, anything it throws out could be aimed our way.</description>
+</item>
+<item>
+<title>WARNING: Sunspot AR4566 update, now also: has already produced strong flares</title>
+<link>https://www.swpc.noaa.gov/products/solar-region-summary</link>
+<guid isPermaLink="false">sunspot:4566:2026-11-05T00:00:00Z+flares</guid>
+<pubDate>Thu, 05 Nov 2026 00:00:00 +0000</pubDate>
+<category>Sunspot</category>
+<category>WARNING</category>
+<description>Sunspot region AR4566 (at S06E28 on the Sun, facing Earth) was already flagged as potentially dangerous and now also has: it has already produced 1 medium or strong (M or X class) flare. Everything it has now: a complex magnetic layout, class BGD (beta-gamma-delta), the kind most likely to produce major flares; rapid growth (area up 180 millionths of the Sun's visible half in 1 day; it is a large, complex type of sunspot group, class Fki); NOAA gives it a 10% chance of producing an X-class (the strongest) flare in the next 24 hours; it has already produced 1 medium or strong (M or X class) flare. Level: WARNING. Based on NOAA's region summary for 2026-11-05 UTC (updated daily, so up to a day old). Sunspot regions are where solar flares and eruptions come from; because this one faces Earth, anything it throws out could be aimed our way.</description>
+</item>
+<item>
+<title>WARNING: Sunspot AR4566 update, now also: 10% chance of an X-class flare</title>
+<link>https://www.swpc.noaa.gov/products/solar-region-summary</link>
+<guid isPermaLink="false">sunspot:4566:2026-11-05T00:00:00Z+xprob</guid>
+<pubDate>Thu, 05 Nov 2026 00:00:00 +0000</pubDate>
+<category>Sunspot</category>
+<category>WARNING</category>
+<description>Sunspot region AR4566 (at S06E28 on the Sun, facing Earth) was already flagged as potentially dangerous and now also has: NOAA gives it a 10% chance of producing an X-class (the strongest) flare in the next 24 hours. Everything it has now: a complex magnetic layout, class BGD (beta-gamma-delta), the kind most likely to produce major flares; rapid growth (area up 180 millionths of the Sun's visible half in 1 day; it is a large, complex type of sunspot group, class Fki); NOAA gives it a 10% chance of producing an X-class (the strongest) flare in the next 24 hours. Level raised from WATCH to WARNING. Based on NOAA's region summary for 2026-11-05 UTC (updated daily, so up to a day old). Sunspot regions are where solar flares and eruptions come from; because this one faces Earth, anything it throws out could be aimed our way.</description>
+</item>
+<item>
+<title>WATCH: Sunspot AR4566 update, now also: rapid growth</title>
+<link>https://www.swpc.noaa.gov/products/solar-region-summary</link>
+<guid isPermaLink="false">sunspot:4566:2026-11-05T00:00:00Z+growth</guid>
+<pubDate>Thu, 05 Nov 2026 00:00:00 +0000</pubDate>
+<category>Sunspot</category>
+<category>WATCH</category>
+<description>Sunspot region AR4566 (at S06E28 on the Sun, facing Earth) was already flagged as potentially dangerous and now also has: rapid growth (area up 180 millionths of the Sun's visible half in 1 day; it is a large, complex type of sunspot group, class Fki). Everything it has now: a complex magnetic layout, class BGD (beta-gamma-delta), the kind most likely to produce major flares; rapid growth (area up 180 millionths of the Sun's visible half in 1 day; it is a large, complex type of sunspot group, class Fki). Level: WATCH. Based on NOAA's region summary for 2026-11-05 UTC (updated daily, so up to a day old). Sunspot regions are where solar flares and eruptions come from; because this one faces Earth, anything it throws out could be aimed our way.</description>
+</item>
+<item>
+<title>WATCH: Potentially dangerous sunspot AR4566 faces Earth, S04E18 (complex magnetic layout, beta-gamma-delta)</title>
+<link>https://www.swpc.noaa.gov/products/solar-region-summary</link>
+<guid isPermaLink="false">sunspot:4566:2026-11-05T00:00:00Z</guid>
+<pubDate>Thu, 05 Nov 2026 00:00:00 +0000</pubDate>
+<category>Sunspot</category>
+<category>WATCH</category>
+<description>Level: WATCH. Sunspot region AR4566 (AR means active region; this is NOAA's number for it) is facing Earth, at S04E18 on the Sun, and has: a complex magnetic layout, class BGD (beta-gamma-delta), the kind most likely to produce major flares. Shape class Fai; covers 210 millionths of the Sun's visible half; 15 spots. Based on NOAA's region summary for 2026-11-05 UTC (updated daily, so up to a day old). Sunspot regions are where solar flares and eruptions come from; because this one faces Earth, anything it throws out could be aimed our way.</description>
+</item>
+<item>
+<title>WARNING: Strong electric field in the ground across the US and Canada: 1207 mV/km near 60.0°N 109.5°W; risk of currents in power grids</title>
+<link>https://www.spaceweather.gov/products/geoelectric-field-models-1-minute</link>
+<guid isPermaLink="false">gic_geoelectric_na:2026-11-04T07:51:30Z</guid>
+<pubDate>Wed, 04 Nov 2026 07:51:30 +0000</pubDate>
+<category>Geomagnetically induced currents</category>
+<category>WARNING</category>
+<description>Strong electric field in the ground across the US and Canada: 1207 mV/km near 60.0°N 109.5°W; risk of currents in power grids. Level: WARNING (the WARNING threshold is 1000 mV/km). The peak was 1207 mV/km at 2026-11-04 07:51 UTC; it began at 07:51 UTC. This is the electric field in the ground, in millivolts per kilometre (mV/km), from NOAA's geoelectric field model for the US and Canada; values this high are far above normal. The value shown was reached or exceeded at 3 grid points, so one odd point cannot trigger an alert. Why it matters: fast changes in Earth's magnetic field drive electric currents through the ground and into long conductors such as power lines, pipelines and railway circuits (geomagnetically induced currents). Strong ones can trip protection equipment, cause voltage problems or overheat transformers; the Quebec blackout of March 1989 was caused this way. Whether a particular grid is affected depends on the grid and the local rock beneath it.</description>
+</item>
+<item>
+<title>WATCH: Potentially dangerous sunspot AR4566 faces Earth, S06E53 (complex magnetic layout, beta-gamma-delta)</title>
+<link>https://www.swpc.noaa.gov/products/solar-region-summary</link>
+<guid isPermaLink="false">sunspot:4566:2026-11-03T00:00:00Z</guid>
+<pubDate>Tue, 03 Nov 2026 00:00:00 +0000</pubDate>
+<category>Sunspot</category>
+<category>WATCH</category>
+<description>Level: WATCH. Sunspot region AR4566 (AR means active region; this is NOAA's number for it) is facing Earth, at S06E53 on the Sun, and has: a complex magnetic layout, class BGD (beta-gamma-delta), the kind most likely to produce major flares. Shape class Fko; covers 100 millionths of the Sun's visible half; 8 spots. Based on NOAA's region summary for 2026-11-03 UTC (updated daily, so up to a day old). Sunspot regions are where solar flares and eruptions come from; because this one faces Earth, anything it throws out could be aimed our way.</description>
+</item>
+<item>
+<title>WATCH: Potentially dangerous sunspot AR4562 faces Earth, S17W57 (complex magnetic layout, beta-gamma-delta)</title>
+<link>https://www.swpc.noaa.gov/products/solar-region-summary</link>
+<guid isPermaLink="false">sunspot:4562:2026-11-03T00:00:00Z</guid>
+<pubDate>Tue, 03 Nov 2026 00:00:00 +0000</pubDate>
+<category>Sunspot</category>
+<category>WATCH</category>
+<description>Level: WATCH. Sunspot region AR4562 (AR means active region; this is NOAA's number for it) is facing Earth, at S17W57 on the Sun, and has: a complex magnetic layout, class BGD (beta-gamma-delta), the kind most likely to produce major flares. Based on NOAA's region summary for 2026-11-03 UTC (updated daily, so up to a day old). Sunspot regions are where solar flares and eruptions come from; because this one faces Earth, anything it throws out could be aimed our way.</description>
+</item>
+<item>
+<title>Solar wind density: 30.98 p/cm³ (threshold &gt; 20)</title>
+<link>https://www.swpc.noaa.gov/products/real-time-solar-wind</link>
+<guid isPermaLink="false">solar_wind_density:2026-10-30T11:15:02Z</guid>
+<pubDate>Fri, 30 Oct 2026 11:50:02 +0000</pubDate>
+<category>Solar wind</category>
+<description>Solar wind density reached 30.98 p/cm³ at 2026-10-30 11:50 UTC (spike began 11:15), beyond the configured threshold (&gt; 20 p/cm³). Latest reading: 17.61 p/cm³.</description>
+</item>
+</channel>
+</rss>
