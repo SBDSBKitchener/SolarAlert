@@ -231,7 +231,8 @@ def _schema():
           ("sunspots.levels.class", "level"), ("sunspots.levels.growth", "level"),
           ("sunspots.levels.xprob", "level"), ("sunspots.levels.flares", "level"), ("sunspots.mcintosh_classes", "mcintosh"), ("sunspots.growth_window_days", "posint"),
           ("sunspots.growth_area_min_increase", "nonneg"), ("sunspots.growth_spots_min_increase", "nonneg"),
-          ("sunspots.x_flare_probability_min", "nonneg"), ("sunspots.flare_history_min_events", "nonneg")]
+          ("sunspots.x_flare_probability_min", "nonneg"), ("sunspots.flare_history_min_events", "nonneg"),
+          ("sunspots.episode_grace_hours", "nonneg")]
     s += [("solar_wind.shock.enabled", "bool"), ("solar_wind.shock.lookback_minutes", "posint"),
           ("solar_wind.shock.hold_fraction", "nonneg"), ("solar_wind.shock.hold_min_readings", "posint"),
           ("solar_wind.shock.min_density_ratio", "nonneg"), ("solar_wind.shock.distance_km", "num"),
@@ -931,7 +932,8 @@ def check_sunspots(cfg, fetch, now):
         counted only when the region's McIntosh class is in mcintosh_classes
       * NOAA's X-class flare probability >= x_flare_probability_min   (M-class probability is ignored)
       * M/X-class flares already reported for the region (flare_history_min_events)
-    A value of 0 (or an empty class list) turns an attribute off. While a region stays flagged, a further
+    A value of 0 (or an empty class list) turns an attribute off. A region that stops being flagged keeps its
+    episode open for `episode_grace_hours` before it counts as over. While a region stays flagged, a further
     alert is issued whenever an attribute is met that has not been announced yet.
 
     Source: NOAA Solar Region Summary (one record per region per day, ~1 day old). Longitude is read from
@@ -995,7 +997,20 @@ def check_sunspots(cfg, fetch, now):
         why = [w for w in why if c["levels"][w[0]] != "off"]          # an attribute set to "off" is ignored
         group = f"sunspot_{num}"
         breached = facing_now and bool(why)
-        conds[group] = breached
+        # NOAA's record for a new day starts incomplete and is filled in over several hours, so a region can look
+        # unflagged for a while. Hold its episode open for a grace period so that what was already announced is
+        # not announced again.
+        store = _STATE.get("store")
+        gkey = f"sunspot_flagged_{num}"
+        if store is not None:
+            if breached:
+                store.set_kv(gkey, iso(now))
+                conds[group] = True
+            else:
+                last_flag = parse_time(store.get_kv(gkey))
+                conds[group] = bool(last_flag and now - last_flag < timedelta(hours=c["episode_grace_hours"]))
+        else:
+            conds[group] = breached
         if facing_now or why:
             notes.append({"region": num, "location": loc, "mag_class": cls, "spot_class": spot_class,
                           "earth_facing": facing_now, "reasons": [w[1] for w in why], "flagged": breached})

@@ -106,6 +106,7 @@ x_flare_probability_min = 10
 flare_history_min_events = 1
 max_age_days = 3
 cooldown_minutes = 1440
+episode_grace_hours = 12              # a region that stops looking flagged (NOAA fills in each new day over several hours) keeps its episode open this long
 link = "https://www.swpc.noaa.gov/products/solar-region-summary"
 
 # Alert level of each attribute: "watch", "warning", "alert" or "off". A region's alert takes the highest

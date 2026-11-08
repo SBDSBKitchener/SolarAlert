@@ -618,6 +618,7 @@ class Sunspots(Base):
 
     # ---- episodes -----------------------------------------------------------------------------------
     def test_no_repeat_next_day_then_realert_after_clearing_and_cooldown(self):
+        self.cfg["sunspots"]["episode_grace_hours"] = 0                          # episode ends as soon as it is unflagged
         self.feed(self.rec(days_ago=1))
         self.assertEqual(len(self.cycle(NOW)), 1)
         day2 = NOW + timedelta(days=1)
@@ -636,6 +637,32 @@ class Sunspots(Base):
         day4 = NOW + timedelta(days=3)
         self.feed(self.rec(days_ago=0, base=day4))                              # flagged again, cooldown elapsed
         self.assertEqual(len(self.cycle(day4)), 1)
+
+    def test_incomplete_new_day_record_does_not_repeat_alerts(self):
+        """NOAA's record for a new day starts incomplete (class blank, no flare data) and is filled in over hours."""
+        full = dict(x_flare_probability=20, m_xray_events=1)
+        self.feed(self.rec(days_ago=0, **full))
+        first = self.cycle(NOW)
+        self.assertEqual(len(first), 1)
+        later = NOW + timedelta(hours=20)
+        self.feed(self.rec(days_ago=0, **full))
+        self.assertEqual(self.cycle(later - timedelta(minutes=5)), [])          # still flagged just before midnight
+        self.feed(self.rec(days_ago=1, **full), self.rec(days_ago=0, base=later + timedelta(hours=6), mag="",
+                                                           x_flare_probability=0, m_xray_events=0))
+        self.assertEqual(self.cycle(later), [])                                 # looks unflagged: episode held open
+        part = self.rec(days_ago=0, base=later + timedelta(hours=6), x_flare_probability=0, m_xray_events=0)
+        self.feed(self.rec(days_ago=1, **full), part)                           # class is back, flare data not yet
+        self.assertEqual(self.cycle(later + timedelta(hours=1)), [])
+        self.assertEqual(self.cycle(later + timedelta(hours=2)), [])
+        self.feed(self.rec(days_ago=1, **full), self.rec(days_ago=0, base=later + timedelta(hours=6), **full))
+        self.assertEqual(self.cycle(later + timedelta(hours=3)), [])            # filled in: nothing re-announced
+
+    def test_region_unflagged_for_longer_than_grace_ends_episode(self):
+        self.feed(self.rec(days_ago=0))
+        self.cycle(NOW)
+        self.feed(self.rec(days_ago=0, mag="B"))
+        self.assertEqual(self.cycle(NOW + timedelta(hours=13)), [])
+        self.assertFalse(self.store.group("sunspot_4551")[0])
 
     def test_disabled_and_failed_source(self):
         self.feed(self.rec())
