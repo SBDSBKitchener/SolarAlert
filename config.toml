@@ -177,7 +177,7 @@ link = "https://www.spaceweather.gov/products/solar-wind"
 enabled = true
 url = "https://services.swpc.noaa.gov/json/goes/primary/integral-protons-1-day.json"
 energy = ">=10 MeV"
-threshold = 200.0
+threshold = 1000.0
 direction = "above"
 lookback_minutes = 480
 cooldown_minutes = 360

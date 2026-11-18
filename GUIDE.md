@@ -184,7 +184,7 @@ stronger aurora and for power grid, GPS and radio disturbances.
 
 **When you get an alert.**
 
-- Proton flux at 10 MeV and above rises above 200 pfu (a moderate-to-strong event, between S2 and S3).
+- Proton flux at 10 MeV and above rises above 1,000 pfu (a strong event, S3 on NOAA's scale).
 - Proton flux at 100 MeV and above rises above 2 pfu.
 
 After an alert, the system stays quiet for six hours for the same band unless the flux has dropped back below the limit and risen again.
@@ -192,11 +192,11 @@ After an alert, the system stays quiet for six hours for the same band unless th
 **Example message**
 
 ```text
-Title: Solar radiation storm: high-energy protons (>=10 MeV): 350 pfu
+Title: Solar radiation storm: high-energy protons (>=10 MeV): 1350 pfu
 Category: Solar radiation storm
 
-Proton flux >=10 MeV reached 350 pfu at 2026-10-13 11:55 UTC (it first went above the alert level of
-200 pfu at 11:55 UTC). Latest reading: 350 pfu. pfu means particles per square centimetre per second per
+Proton flux >=10 MeV reached 1350 pfu at 2026-10-13 11:55 UTC (it first went above the alert level of
+1000 pfu at 11:55 UTC). Latest reading: 1350 pfu. pfu means particles per square centimetre per second per
 steradian, the unit NOAA uses to count solar protons passing the GOES satellites. Raised levels can harm
 satellite electronics and are a radiation concern for astronauts and for polar flights, and can disturb
 high-frequency radio at the poles. On NOAA's S scale, 10 pfu is S1 (Minor), 100 is S2, 1,000 is S3,
@@ -365,7 +365,7 @@ These are the values in use as of 1 November 2026. All can be changed in the sys
 | Predicted severe storm | NOAA WATCH or WARNING bulletin for G4 or higher (K-index of 8 or more) | None | 6 hours | Bulletins older than 36 hours are ignored. |
 | Observed geomagnetic storm | Kp of 7 or higher | None | One alert per 3-hour period | Kp 7 is G3 (Strong). Looks back 12 hours. |
 | Magnetic coupling | Kp of 7 or higher and IMF clock angle between 150° and 210° for at least 5 minutes | WARNING | 3 hours | Either condition may come first. Field components are smoothed over 5 minutes. |
-| Solar radiation storm, 10 MeV and above | Proton flux above 200 pfu | None | 6 hours | Between S2 (100 pfu) and S3 (1,000 pfu) on NOAA's scale. |
+| Solar radiation storm, 10 MeV and above | Proton flux above 1,000 pfu | None | 6 hours | S3 (Strong) on NOAA's scale starts at 1,000 pfu. |
 | Solar radiation storm, 100 MeV and above | Proton flux above 2 pfu | None | 6 hours | The rarer, more penetrating protons. |
 | Solar wind speed | Above 1,000 km/s | None | 1 hour | Normal is 300–500 km/s. Glitch spikes are filtered out. |
 | Solar wind density | Above 20 particles/cm³ | None | 1 hour | Normal is under about 10. Readings above 100 are discarded as errors. |
