@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+<channel>
+<title>Solar &amp; Geomagnetic Alerts</title>
+<link>https://SBDSBKitchener.github.io/SolarAlert/</link>
+<description>Significant solar flares, solar eruptions, geomagnetic storms, radiation storms, solar wind shocks and power-grid risk. WATCH = worth keeping an eye on; WARNING = a significant event is likely or under way; ALERT = an extreme event. Times are UTC.</description>
+<language>en</language>
+<ttl>5</ttl>
+<atom:link href="https://SBDSBKitchener.github.io/SolarAlert/feed.xml" rel="self" type="application/rss+xml"/>
+<lastBuildDate>Wed, 18 Nov 2026 14:05:38 +0000</lastBuildDate>
+<item>
+<title>WATCH: Potentially dangerous sunspot AR4581 faces Earth, S08E53 (complex magnetic layout, beta-gamma-delta)</title>
+<link>https://www.swpc.noaa.gov/products/solar-region-summary</link>
+<guid isPermaLink="false">sunspot:4581:2026-11-18T00:00:00Z</guid>
+<pubDate>Wed, 18 Nov 2026 00:00:00 +0000</pubDate>
+<category>Sunspot</category>
+<category>WATCH</category>
+<description>Level: WATCH. Sunspot region AR4581 (AR means active region; this is NOAA's number for it) is facing Earth, at S08E53 on the Sun, and has: a complex magnetic layout, class BGD (beta-gamma-delta), the kind most likely to produce major flares. Shape class Dai; covers 70 millionths of the Sun's visible half; 17 spots. Based on NOAA's region summary for 2026-11-18 UTC (updated daily, so up to a day old). Sunspot regions are where solar flares and eruptions come from; because this one faces Earth, anything it throws out could be aimed our way.</description>
+</item>
+<item>
+<title>WATCH: Sunspot AR4566 update, now also: rapid growth</title>
+<link>https://www.swpc.noaa.gov/products/solar-region-summary</link>
+<guid isPermaLink="false">sunspot:4566:2026-11-11T00:00:00Z+growth</guid>
+<pubDate>Wed, 11 Nov 2026 00:00:00 +0000</pubDate>
+<category>Sunspot</category>
+<category>WATCH</category>
+<description>Sunspot region AR4566 (at S07W48 on the Sun, facing Earth) was already flagged as potentially dangerous and now also has: rapid growth (13 more sunspots in 1 day; it is a large, complex type of sunspot group, class Eki). Everything it has now: rapid growth (13 more sunspots in 1 day; it is a large, complex type of sunspot group, class Eki). Level: WATCH. Based on NOAA's region summary for 2026-11-11 UTC (updated daily, so up to a day old). Sunspot regions are where solar flares and eruptions come from; because this one faces Earth, anything it throws out could be aimed our way.</description>
+</item>
+<item>
+<title>WARNING: Sunspot AR4566 update, now also: has already produced strong flares</title>
+<link>https://www.swpc.noaa.gov/products/solar-region-summary</link>
+<guid isPermaLink="false">sunspot:4566:2026-11-08T00:00:00Z+flares</guid>
+<pubDate>Sun, 08 Nov 2026 00:00:00 +0000</pubDate>
+<category>Sunspot</category>
+<category>WARNING</category>
+<description>Sunspot region AR4566 (at S06W07 on the Sun, facing Earth) was already flagged as potentially dangerous and now also has: it has already produced 1 medium or strong (M or X class) flare. Everything it has now: a complex magnetic layout, class BGD (beta-gamma-delta), the kind most likely to produce major flares; NOAA gives it a 20% chance of producing an X-class (the strongest) flare in the next 24 hours; it has already produced 1 medium or strong (M or X class) flare. Level: WARNING. Based on NOAA's region summary for 2026-11-08 UTC (updated daily, so up to a day old). Sunspot regions are where solar flares and eruptions come from; because this one faces Earth, anything it throws out could be aimed our way.</description>
+</item>
+<item>
+<title>WARNING: Sunspot AR4566 update, now also: 20% chance of an X-class flare</title>
+<link>https://www.swpc.noaa.gov/products/solar-region-summary</link>
+<guid isPermaLink="false">sunspot:4566:2026-11-08T00:00:00Z+xprob</guid>
+<pubDate>Sun, 08 Nov 2026 00:00:00 +0000</pubDate>
+<category>Sunspot</category>
+<category>WARNING</category>
+<description>Sunspot region AR4566 (at S06W07 on the Sun, facing Earth) was already flagged as potentially dangerous and now also has: NOAA gives it a 20% chance of producing an X-class (the strongest) flare in the next 24 hours. Everything it has now: a complex magnetic layout, class BGD (beta-gamma-delta), the kind most likely to produce major flares; NOAA gives it a 20% chance of producing an X-class (the strongest) flare in the next 24 hours. Level raised from WATCH to WARNING. Based on NOAA's region summary for 2026-11-08 UTC (updated daily, so up to a day old). Sunspot regions are where solar flares and eruptions come from; because this one faces Earth, anything it throws out could be aimed our way.</description>
+</item>
+<item>
+<title>WARNING: Sunspot AR4566 update, now also: 20% chance of an X-class flare</title>
+<link>https://www.swpc.noaa.gov/products/solar-region-summary</link>
+<guid isPermaLink="false">sunspot:4566:2026-11-07T00:00:00Z+xprob</guid>
+<pubDate>Sat, 07 Nov 2026 00:00:00 +0000</pubDate>
+<category>Sunspot</category>
+<category>WARNING</category>
+<description>Sunspot region AR4566 (at S06E06 on the Sun, facing Earth) was already flagged as potentially dangerous and now also has: NOAA gives it a 20% chance of producing an X-class (the strongest) flare in the next 24 hours. Everything it has now: a complex magnetic layout, class BGD (beta-gamma-delta), the kind most likely to produce major flares; NOAA gives it a 20% chance of producing an X-class (the strongest) flare in the next 24 hours; it has already produced 2 medium or strong (M or X class) flares. Level raised from WATCH to WARNING. Based on NOAA's region summary for 2026-11-07 UTC (updated daily, so up to a day old). Sunspot regions are where solar flares and eruptions come from; because this one faces Earth, anything it throws out could be aimed our way.</description>
+</item>
+</channel>
+</rss>
